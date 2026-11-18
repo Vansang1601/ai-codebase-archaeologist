@@ -1,0 +1,355 @@
+[
+  {
+    "id": 1,
+    "kind": "symbol_change",
+    "title": "Đổi kiểu trả về của extract_symbols",
+    "change": {
+      "description": "Thêm trường mới (signature) vào đối tượng Symbol trả về.",
+      "target_file": "parser-worker/ast_parser/symbols.py",
+      "target_symbol": "extract_symbols",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "parser-worker/embeddings/chunker.py",
+        "parser-worker/ast_parser/graph.py"
+      ],
+      "indirect": [
+        "backend/src/models/symbol.py",
+        "backend/src/api/graph.py"
+      ]
+    },
+    "expected_tests": [
+      "parser-worker/tests/test_symbols.py"
+    ],
+    "expected_risk": "medium",
+    "rationale": "Chunker và graph đọc trực tiếp Symbol; model và API graph phụ thuộc gián tiếp.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 2,
+    "kind": "symbol_change",
+    "title": "Đổi chữ ký resolve_import",
+    "change": {
+      "description": "Thêm tham số source_roots để hỗ trợ thư mục src/.",
+      "target_file": "parser-worker/ast_parser/imports.py",
+      "target_symbol": "resolve_import",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "parser-worker/ast_parser/graph.py"
+      ],
+      "indirect": [
+        "backend/src/api/graph.py"
+      ]
+    },
+    "expected_tests": [
+      "parser-worker/tests/test_imports.py"
+    ],
+    "expected_risk": "medium",
+    "rationale": "Chỉ bước dựng graph gọi resolve_import; ảnh hưởng lan lên API graph.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 3,
+    "kind": "symbol_change",
+    "title": "Đổi schema bảng Symbol",
+    "change": {
+      "description": "Đổi tên cột line_start thành start_line.",
+      "target_file": "backend/src/models/symbol.py",
+      "target_symbol": "Symbol",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "parser-worker/ast_parser/symbols.py",
+        "backend/src/api/graph.py",
+        "backend/src/services/retrieval.py"
+      ],
+      "indirect": [
+        "parser-worker/embeddings/chunker.py",
+        "benchmarks/evaluate.py"
+      ]
+    },
+    "expected_tests": [
+      "backend/tests/test_models.py"
+    ],
+    "expected_risk": "high",
+    "rationale": "Đổi tên cột ảnh hưởng mọi nơi đọc/ghi Symbol, cần migration.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 4,
+    "kind": "symbol_change",
+    "title": "Đổi định dạng khóa bằng chứng",
+    "change": {
+      "description": "Thêm trường branch vào khóa (repository + SHA + path + dòng).",
+      "target_file": "backend/src/models/evidence.py",
+      "target_symbol": "EvidenceKey",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "backend/src/api/qa.py",
+        "backend/src/services/retrieval.py"
+      ],
+      "indirect": [
+        "frontend/src/components/SourceViewer.jsx",
+        "benchmarks/evaluate.py"
+      ]
+    },
+    "expected_tests": [
+      "backend/tests/test_evidence.py"
+    ],
+    "expected_risk": "high",
+    "rationale": "Khóa được dùng cho trích dẫn nên lan tới giao diện và đánh giá.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 5,
+    "kind": "symbol_change",
+    "title": "Sửa hàm kiểm tra chữ ký webhook",
+    "change": {
+      "description": "Đổi thuật toán so sánh chữ ký.",
+      "target_file": "backend/src/services/webhook.py",
+      "target_symbol": "verify_signature",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 2,
+    "expected_impacted": {
+      "direct": [
+        "backend/src/api/webhook_routes.py"
+      ],
+      "indirect": [
+        "backend/src/services/github_sync.py"
+      ]
+    },
+    "expected_tests": [
+      "backend/tests/test_webhook.py"
+    ],
+    "expected_risk": "high",
+    "rationale": "Lỗi có thể chặn webhook hợp lệ hoặc cho qua webhook giả.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 6,
+    "kind": "symbol_change",
+    "title": "Đổi model embedding sang số chiều khác",
+    "change": {
+      "description": "Chuyển từ vector 1536 chiều sang 768 chiều.",
+      "target_file": "parser-worker/embeddings/embedder.py",
+      "target_symbol": "embed_texts",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "parser-worker/embeddings/chunker.py",
+        "backend/src/models/chunk.py"
+      ],
+      "indirect": [
+        "backend/src/services/retrieval.py",
+        "benchmarks/evaluate.py"
+      ]
+    },
+    "expected_tests": [
+      "parser-worker/tests/test_embedder.py"
+    ],
+    "expected_risk": "high",
+    "rationale": "Phải đổi kích thước cột vector và rebuild toàn bộ index.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 7,
+    "kind": "config_change",
+    "title": "Đổi tên biến môi trường REDIS_URL",
+    "change": {
+      "description": "Đổi REDIS_URL thành QUEUE_URL.",
+      "target_file": "docker-compose.yml",
+      "target_symbol": "REDIS_URL",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 2,
+    "expected_impacted": {
+      "direct": [
+        "parser-worker/worker.py",
+        "backend/src/services/github_sync.py",
+        ".env.example"
+      ],
+      "indirect": [
+        "docker-compose.yml"
+      ]
+    },
+    "expected_tests": [],
+    "expected_risk": "low",
+    "rationale": "Chỉ cấu hình, nhưng sai sót làm worker không nhận job.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 8,
+    "kind": "symbol_change",
+    "title": "Đổi cấu trúc phản hồi API Q&A",
+    "change": {
+      "description": "Đổi trường citations thành evidence_items.",
+      "target_file": "backend/src/api/qa.py",
+      "target_symbol": "answer_question",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "frontend/src/services/api.js",
+        "frontend/src/components/ChatPanel.jsx"
+      ],
+      "indirect": [
+        "frontend/src/components/SourceViewer.jsx",
+        "benchmarks/evaluate.py"
+      ]
+    },
+    "expected_tests": [
+      "backend/tests/test_qa.py"
+    ],
+    "expected_risk": "medium",
+    "rationale": "Giao diện chat và script đánh giá đọc trường này.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 9,
+    "kind": "symbol_change",
+    "title": "Thay đổi quy tắc loại trừ file khi ingest",
+    "change": {
+      "description": "Thêm loại trừ thư mục vendor/.",
+      "target_file": "backend/src/services/ingest_filter.py",
+      "target_symbol": "should_skip",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "backend/src/services/github_sync.py"
+      ],
+      "indirect": [
+        "parser-worker/worker.py",
+        "parser-worker/ast_parser/symbols.py"
+      ]
+    },
+    "expected_tests": [
+      "backend/tests/test_ingest_filter.py"
+    ],
+    "expected_risk": "medium",
+    "rationale": "Ít file được ingest hơn nên symbol, chunk và graph thay đổi theo.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 10,
+    "kind": "symbol_change",
+    "title": "Sửa thuật toán gộp điểm hybrid retrieval",
+    "change": {
+      "description": "Đổi trọng số keyword/vector.",
+      "target_file": "backend/src/services/retrieval.py",
+      "target_symbol": "hybrid_search",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 2,
+    "expected_impacted": {
+      "direct": [
+        "backend/src/api/qa.py"
+      ],
+      "indirect": [
+        "frontend/src/components/ChatPanel.jsx",
+        "benchmarks/evaluate.py"
+      ]
+    },
+    "expected_tests": [
+      "backend/tests/test_retrieval.py"
+    ],
+    "expected_risk": "medium",
+    "rationale": "Thay đổi chất lượng câu trả lời; cần chạy lại benchmark Recall@k.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 11,
+    "kind": "symbol_change",
+    "title": "Đổi nhãn confidence của cạnh dependency",
+    "change": {
+      "description": "Thêm giá trị mới 'heuristic'.",
+      "target_file": "parser-worker/ast_parser/graph.py",
+      "target_symbol": "Edge.confidence",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "backend/src/api/graph.py",
+        "frontend/src/components/GraphViewer.jsx"
+      ],
+      "indirect": [
+        "benchmarks/impact_dataset.json",
+        "benchmarks/evaluate.py"
+      ]
+    },
+    "expected_tests": [
+      "parser-worker/tests/test_graph.py"
+    ],
+    "expected_risk": "medium",
+    "rationale": "Giao diện tô màu theo nhãn; đánh giá impact lọc theo nhãn.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  },
+  {
+    "id": 12,
+    "kind": "dependency_change",
+    "title": "Nâng cấp phiên bản tree-sitter",
+    "change": {
+      "description": "Nâng từ 0.26 lên bản mới có thay đổi API.",
+      "target_file": "parser-worker/requirements.txt",
+      "target_symbol": "tree-sitter",
+      "repo": "ai-codebase-archaeologist",
+      "commit_sha": null
+    },
+    "max_depth": 3,
+    "expected_impacted": {
+      "direct": [
+        "parser-worker/ast_parser/symbols.py",
+        "parser-worker/ast_parser/imports.py"
+      ],
+      "indirect": [
+        "parser-worker/ast_parser/graph.py",
+        "parser-worker/embeddings/chunker.py"
+      ]
+    },
+    "expected_tests": [
+      "parser-worker/tests/"
+    ],
+    "expected_risk": "high",
+    "rationale": "Mọi mã dùng API tree-sitter có thể vỡ; cần ghi chú phát hành.",
+    "verification_status": "to_verify_after_code_exists",
+    "verified_by": null
+  }
+]
