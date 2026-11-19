@@ -5,14 +5,18 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from .config import get_settings
 from .database import Base, engine, get_db
-from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitRecord, Finding
+from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitRecord, Finding, PullRequest
 from .schemas import RepositoryCreate, SyncRequest, QuestionRequest, ImpactRequest, AnswerOut, EvidenceOut
 from .security import canonicalize_github_url, RepositoryUrlError
 from .retrieval import retrieve, evidence_url, latest_snapshot
 from .llm import synthesize
+from .auth import get_current_user, get_current_user_optional, get_user_tenant_id, require_repo_access, require_job_access
+from .auth_models import User, Tenant, TenantMember, AuthAccount, GitHubInstallation  # ensure tables are registered
+from .auth_routes import router as auth_router
 
 settings = get_settings()
 
@@ -23,7 +27,8 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="AI Codebase Archaeologist API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="AI Codebase Archaeologist API", version="0.2.0", lifespan=lifespan)
+app.include_router(auth_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -39,8 +44,12 @@ def health():
 
 
 @app.get("/api/repos")
-def list_repositories(db: Session = Depends(get_db)):
-    repos = db.scalars(select(Repository).order_by(Repository.created_at.desc())).all()
+def list_repositories(db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    q = select(Repository).order_by(Repository.created_at.desc())
+    if user is not None:
+        tenant_id = get_user_tenant_id(user)
+        q = q.where((Repository.tenant_id == tenant_id) | (Repository.tenant_id == "00000000-0000-0000-0000-000000000001"))
+    repos = db.scalars(q).all()
     out = []
     for repo in repos:
         snap = latest_snapshot(db, repo.id)
@@ -57,30 +66,39 @@ def list_repositories(db: Session = Depends(get_db)):
 
 
 @app.post("/api/repos")
-def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db)):
+def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     try:
         canonical = canonicalize_github_url(payload.url)
     except RepositoryUrlError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     repo = db.scalar(select(Repository).where(Repository.canonical_url == canonical.url))
+    tenant_id = get_user_tenant_id(user) if user else None
     if repo is None:
         repo = Repository(
             canonical_url=canonical.url,
             owner=canonical.owner,
             name=canonical.name,
             default_branch=payload.branch,
+            tenant_id=tenant_id,
         )
         db.add(repo)
         db.commit()
+        db.refresh(repo)
+    elif tenant_id and (repo.tenant_id is None or repo.tenant_id == "00000000-0000-0000-0000-000000000001"):
+        repo.tenant_id = tenant_id
+        db.commit()
+        db.refresh(repo)
         db.refresh(repo)
     return {"id": repo.id, "owner": repo.owner, "name": repo.name, "canonical_url": repo.canonical_url, "status": repo.status}
 
 
 @app.post("/api/repos/{repo_id}/sync")
-def sync_repository(repo_id: str, payload: SyncRequest, db: Session = Depends(get_db)):
+def sync_repository(repo_id: str, payload: SyncRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     active = db.scalar(
         select(AnalysisJob).where(
             AnalysisJob.repository_id == repo_id,
@@ -89,7 +107,8 @@ def sync_repository(repo_id: str, payload: SyncRequest, db: Session = Depends(ge
     )
     if active:
         return _job_dict(active)
-    job = AnalysisJob(repository_id=repo_id, requested_ref=payload.ref, status="queued", phase="queued", progress=0)
+    job = AnalysisJob(repository_id=repo_id, requested_ref=payload.ref, status="queued", phase="queued", progress=0,
+                      tenant_id=repo.tenant_id)
     repo.status = "queued"
     db.add(job)
     db.commit()
@@ -98,18 +117,22 @@ def sync_repository(repo_id: str, payload: SyncRequest, db: Session = Depends(ge
 
 
 @app.get("/api/jobs/{job_id}")
-def get_job(job_id: str, db: Session = Depends(get_db)):
+def get_job(job_id: str, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     job = db.get(AnalysisJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if user is not None:
+        require_job_access(job, user)
     return _job_dict(job)
 
 
 @app.get("/api/repos/{repo_id}")
-def get_repository(repo_id: str, db: Session = Depends(get_db)):
+def get_repository(repo_id: str, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snap = latest_snapshot(db, repo_id)
     return {
         "id": repo.id,
@@ -122,7 +145,12 @@ def get_repository(repo_id: str, db: Session = Depends(get_db)):
 
 
 @app.get("/api/repos/{repo_id}/files")
-def get_files(repo_id: str, limit: int = Query(default=200, ge=1, le=1000), db: Session = Depends(get_db)):
+def get_files(repo_id: str, limit: int = Query(default=200, ge=1, le=1000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snapshot = latest_snapshot(db, repo_id)
     if not snapshot:
         raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
@@ -136,7 +164,12 @@ def get_files(repo_id: str, limit: int = Query(default=200, ge=1, le=1000), db: 
 
 
 @app.get("/api/repos/{repo_id}/file")
-def get_file(repo_id: str, path: str = Query(min_length=1, max_length=1000), db: Session = Depends(get_db)):
+def get_file(repo_id: str, path: str = Query(min_length=1, max_length=1000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snapshot = latest_snapshot(db, repo_id)
     if not snapshot:
         raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
@@ -154,10 +187,12 @@ def get_file(repo_id: str, path: str = Query(min_length=1, max_length=1000), db:
 
 
 @app.post("/api/repos/{repo_id}/questions", response_model=AnswerOut)
-def ask_question(repo_id: str, payload: QuestionRequest, db: Session = Depends(get_db)):
+def ask_question(repo_id: str, payload: QuestionRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snapshot, scored = retrieve(db, repo_id, payload.question, payload.top_k)
     if not snapshot:
         raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
@@ -191,14 +226,19 @@ def ask_question(repo_id: str, payload: QuestionRequest, db: Session = Depends(g
         github_url=evidence_url(repo, snapshot.commit_sha, x.chunk.path, x.chunk.line_start, x.chunk.line_end),
         score=round(x.score, 4),
         symbol_name=x.chunk.symbol_name,
+        repository_id=repo.id,
+        tenant_id=repo.tenant_id,
     ) for x in kept]
     return AnswerOut(answer=answer, grounded=True, evidence=evidence, warnings=warnings)
 
 
 @app.get("/api/repos/{repo_id}/timeline")
-def timeline(repo_id: str, limit: int = Query(default=100, ge=1, le=300), db: Session = Depends(get_db)):
-    if not db.get(Repository, repo_id):
+def timeline(repo_id: str, limit: int = Query(default=100, ge=1, le=300), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     commits = db.scalars(
         select(CommitRecord).where(CommitRecord.repository_id == repo_id)
         .order_by(CommitRecord.committed_at.desc()).limit(limit)
@@ -210,7 +250,12 @@ def timeline(repo_id: str, limit: int = Query(default=100, ge=1, le=300), db: Se
 
 
 @app.get("/api/repos/{repo_id}/graph")
-def graph(repo_id: str, limit: int = Query(default=500, ge=1, le=2000), db: Session = Depends(get_db)):
+def graph(repo_id: str, limit: int = Query(default=500, ge=1, le=2000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snapshot = latest_snapshot(db, repo_id)
     if not snapshot:
         raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
@@ -227,7 +272,12 @@ def graph(repo_id: str, limit: int = Query(default=500, ge=1, le=2000), db: Sess
 
 
 @app.post("/api/repos/{repo_id}/impact")
-def impact(repo_id: str, payload: ImpactRequest, db: Session = Depends(get_db)):
+def impact(repo_id: str, payload: ImpactRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snapshot = latest_snapshot(db, repo_id)
     if not snapshot:
         raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
@@ -259,7 +309,12 @@ def impact(repo_id: str, payload: ImpactRequest, db: Session = Depends(get_db)):
 
 
 @app.get("/api/repos/{repo_id}/findings")
-def findings(repo_id: str, db: Session = Depends(get_db)):
+def findings(repo_id: str, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
     snapshot = latest_snapshot(db, repo_id)
     if not snapshot:
         raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
@@ -274,11 +329,42 @@ def findings(repo_id: str, db: Session = Depends(get_db)):
     } for x in rows]
 
 
+@app.get("/api/repos/{repo_id}/pulls")
+def list_pull_requests(
+    repo_id: str,
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
+    prs = db.scalars(
+        select(PullRequest).where(PullRequest.repository_id == repo_id)
+        .order_by(PullRequest.number.desc()).limit(limit)
+    ).all()
+    return [{
+        "id": p.id,
+        "number": p.number,
+        "title": p.title,
+        "state": p.state,
+        "author_name": p.author_name,
+        "head_sha": p.head_sha,
+        "base_branch": p.base_branch,
+        "merged_at": p.merged_at,
+        "closed_at": p.closed_at,
+        "created_at_gh": p.created_at_gh,
+    } for p in prs]
+
+
 def _snapshot_dict(s: Snapshot):
     return {
         "id": s.id, "commit_sha": s.commit_sha, "branch": s.branch, "status": s.status,
         "file_count": s.file_count, "symbol_count": s.symbol_count,
         "dependency_count": s.dependency_count, "chunk_count": s.chunk_count,
+        "pr_count": s.pr_count,
         "created_at": s.created_at,
     }
 
@@ -288,5 +374,8 @@ def _job_dict(job: AnalysisJob):
         "id": job.id, "repository_id": job.repository_id, "requested_ref": job.requested_ref,
         "status": job.status, "phase": job.phase, "progress": job.progress,
         "snapshot_id": job.snapshot_id, "error": job.error,
+        "skipped_files": json.loads(job.skipped_files_json or "{}"),
+        "pr_status": job.pr_status,
+        "pr_count": job.pr_count,
         "created_at": job.created_at, "updated_at": job.updated_at,
     }

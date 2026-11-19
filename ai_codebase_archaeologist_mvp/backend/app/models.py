@@ -17,6 +17,7 @@ def now() -> datetime:
 class Repository(Base):
     __tablename__ = "repositories"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
     canonical_url: Mapped[str] = mapped_column(String(500), unique=True, index=True)
     owner: Mapped[str] = mapped_column(String(200), index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
@@ -38,6 +39,7 @@ class Snapshot(Base):
     symbol_count: Mapped[int] = mapped_column(Integer, default=0)
     dependency_count: Mapped[int] = mapped_column(Integer, default=0)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    pr_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -45,10 +47,14 @@ class AnalysisJob(Base):
     __tablename__ = "analysis_jobs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     repository_id: Mapped[str] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
     requested_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
     phase: Mapped[str] = mapped_column(String(64), default="queued")
     progress: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_files_json: Mapped[str | None] = mapped_column(Text, default="{}")
+    pr_status: Mapped[str] = mapped_column(String(32), default="pending")
+    pr_count: Mapped[int] = mapped_column(Integer, default=0)
     snapshot_id: Mapped[str | None] = mapped_column(ForeignKey("snapshots.id", ondelete="SET NULL"), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -129,3 +135,23 @@ class Finding(Base):
     line_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     meta_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class PullRequest(Base):
+    __tablename__ = "pull_requests"
+    __table_args__ = (
+        UniqueConstraint("repository_id", "number", name="uq_repo_pr_number"),
+        Index("ix_pull_requests_repo", "repository_id"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    repository_id: Mapped[str] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(500))
+    state: Mapped[str] = mapped_column(String(32), default="open")
+    author_name: Mapped[str] = mapped_column(String(300), default="")
+    head_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    base_branch: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    merged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at_gh: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

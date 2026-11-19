@@ -19,10 +19,34 @@ export type Repo = {
   snapshot?: Snapshot | null;
 };
 
+function getToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)session_token=([^;]+)/);
+  if (match) return decodeURIComponent(match[1]);
+  return localStorage.getItem("session_token");
+}
+
+export function setToken(token: string | null) {
+  if (typeof document === "undefined") return;
+  if (token) {
+    document.cookie = `session_token=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax`;
+    localStorage.setItem("session_token", token);
+  } else {
+    document.cookie = "session_token=; path=/; max-age=0";
+    localStorage.removeItem("session_token");
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(init?.headers as Record<string, string> || {})
+  };
   const res = await fetch(`${API}${path}`, {
     ...init,
-    headers: {"Content-Type": "application/json", ...(init?.headers || {})},
+    headers,
     cache: "no-store"
   });
   if (!res.ok) {
@@ -46,4 +70,10 @@ export const api = {
   graph: (id: string) => request<any>(`/api/repos/${id}/graph?limit=1000`),
   impact: (id: string, target_path: string, depth=2) => request<any>(`/api/repos/${id}/impact`, {method:"POST", body:JSON.stringify({target_path, depth})}),
   findings: (id: string) => request<any[]>(`/api/repos/${id}/findings`),
+  authStatus: () => request<any>("/api/auth/status"),
+  login: (email: string) => request<any>("/api/auth/login", {method:"POST", body:JSON.stringify({email})}),
+  register: (email: string, name?: string) => request<any>("/api/auth/register", {method:"POST", body:JSON.stringify({email, name})}),
+  me: () => request<any>("/api/auth/me"),
+  githubInstallations: () => request<any>("/api/auth/github/installations"),
+  githubRepos: () => request<any>("/api/auth/github/repositories"),
 };

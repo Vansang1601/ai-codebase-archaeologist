@@ -11,6 +11,23 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_timeout_seconds: int = 45
     min_evidence_score: float = 0.08
+    # Auth
+    environment: str = "development"
+    allow_dev_login: bool = True
+    auth_secret: str = ""
+    backend_internal_secret: str = ""
+    # OAuth Login (GitHub / Google)
+    auth_github_id: str = ""
+    auth_github_secret: str = ""
+    auth_google_id: str = ""
+    auth_google_secret: str = ""
+    # GitHub App (for repository connection, NOT login)
+    github_app_id: str = ""
+    github_app_client_id: str = ""
+    github_app_client_secret: str = ""
+    github_app_private_key: str = ""
+    github_app_slug: str = ""
+    github_webhook_secret: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 

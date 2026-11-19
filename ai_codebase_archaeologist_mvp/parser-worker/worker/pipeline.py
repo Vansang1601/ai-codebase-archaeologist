@@ -2,6 +2,9 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import urllib.error
+import urllib.request
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 from sqlalchemy import delete, select
@@ -15,7 +18,7 @@ from .dependencies import build_dependencies
 from .chunking import make_chunks
 from .vectorizer import hash_vector
 from .findings import build_findings
-from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, Chunk, CommitRecord, Finding
+from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, Chunk, CommitRecord, Finding, PullRequest
 
 
 def update_job(db: Session, job: AnalysisJob, phase: str, progress: int):
@@ -23,6 +26,73 @@ def update_job(db: Session, job: AnalysisJob, phase: str, progress: int):
     job.progress = progress
     job.status = "running"
     db.commit()
+
+
+def sync_pull_requests(db: Session, repo: Repository, job: AnalysisJob, snapshot: Snapshot) -> None:
+    """Fetch Pull Request metadata from GitHub API."""
+    url = f"https://api.github.com/repos/{repo.owner}/{repo.name}/pulls?state=all&per_page=30"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "AI-Codebase-Archaeologist",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                raw = json.loads(resp.read().decode("utf-8"))
+                count = 0
+                for item in raw:
+                    pr_num = item.get("number")
+                    if not pr_num:
+                        continue
+                    existing = db.scalar(
+                        select(PullRequest).where(
+                            PullRequest.repository_id == repo.id,
+                            PullRequest.number == pr_num,
+                        )
+                    )
+                    merged_at = None
+                    closed_at = None
+                    created_at_gh = None
+                    try:
+                        if item.get("merged_at"):
+                            merged_at = datetime.fromisoformat(item["merged_at"].replace("Z", "+00:00"))
+                        if item.get("closed_at"):
+                            closed_at = datetime.fromisoformat(item["closed_at"].replace("Z", "+00:00"))
+                        if item.get("created_at"):
+                            created_at_gh = datetime.fromisoformat(item["created_at"].replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+
+                    if not existing:
+                        db.add(PullRequest(
+                            repository_id=repo.id,
+                            number=pr_num,
+                            title=(item.get("title") or "")[:500],
+                            state=item.get("state") or "open",
+                            author_name=((item.get("user") or {}).get("login") or "")[:300],
+                            head_sha=(item.get("head") or {}).get("sha"),
+                            base_branch=(item.get("base") or {}).get("ref"),
+                            merged_at=merged_at,
+                            closed_at=closed_at,
+                            created_at_gh=created_at_gh,
+                        ))
+                    count += 1
+                job.pr_status = "completed"
+                job.pr_count = count
+                snapshot.pr_count = count
+                return
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 429):
+            job.pr_status = "rate_limited"
+        elif exc.code in (401, 404):
+            job.pr_status = "unauthorized_or_not_found"
+        else:
+            job.pr_status = f"http_{exc.code}"
+    except Exception:
+        job.pr_status = "failed"
 
 
 def run_job(db: Session, job: AnalysisJob):
@@ -54,6 +124,8 @@ def run_job(db: Session, job: AnalysisJob):
 
         update_job(db, job, "scanning", 20)
         scanned, skipped = scan_repository(workdir)
+        job.skipped_files_json = json.dumps(skipped)
+        db.commit()
         if not scanned:
             raise RuntimeError("No supported text source files were found within configured limits")
 
@@ -117,6 +189,10 @@ def run_job(db: Session, job: AnalysisJob):
                     repository_id=repo.id, sha=c.sha, author_name=c.author_name,
                     message=c.message, committed_at=c.committed_at,
                 ))
+
+        update_job(db, job, "pull_requests", 85)
+        sync_pull_requests(db, repo, job, snapshot)
+        db.commit()
 
         update_job(db, job, "findings", 90)
         # findings use in-memory data so they are reproducible without an LLM

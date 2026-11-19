@@ -29,6 +29,8 @@ class EvidenceOut(BaseModel):
     github_url: str | None = None
     score: float
     symbol_name: str | None = None
+    repository_id: str | None = None
+    tenant_id: str | None = None
 
 
 class AnswerOut(BaseModel):
