@@ -84,7 +84,7 @@ def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db), 
         db.add(repo)
         db.commit()
         db.refresh(repo)
-    elif tenant_id and (repo.tenant_id is None or repo.tenant_id == "00000000-0000-0000-0000-000000000001"):
+    elif tenant_id and repo.tenant_id is None:
         repo.tenant_id = tenant_id
         db.commit()
         db.refresh(repo)

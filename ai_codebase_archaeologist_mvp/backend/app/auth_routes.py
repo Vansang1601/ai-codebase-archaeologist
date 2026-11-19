@@ -21,6 +21,7 @@ from urllib.parse import urlencode
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -284,6 +285,162 @@ def oauth_callback(provider: str, payload: OAuthCallbackRequest, db: Session = D
     membership = db.scalar(select(TenantMember).where(TenantMember.user_id == user.id).limit(1))
     token = create_access_token(user.id, membership.tenant_id)
     return TokenResponse(access_token=token, user_id=user.id, tenant_id=membership.tenant_id)
+
+
+# ------------------------------------------------------------------
+# GET /api/auth/oauth/{provider}/callback - real browser redirect from GitHub/Google
+# GitHub/Google redirect here with ?code=...&state=...
+# We exchange the code, set a session cookie, then redirect back to the frontend
+# ------------------------------------------------------------------
+@router.get("/oauth/{provider}/callback")
+def oauth_browser_callback(
+    provider: str,
+    code: str = Query(default=None),
+    state: str = Query(default=None),
+    error: str = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = get_settings()
+    frontend_url = settings.cors_origins.split(",")[0].strip().rstrip("/")
+
+    # OAuth denied by user
+    if error:
+        return RedirectResponse(url=f"{frontend_url}/login?error={error}")
+
+    if not code:
+        return RedirectResponse(url=f"{frontend_url}/login?error=missing_code")
+
+    # Reuse the same exchange logic by calling the POST handler internals directly
+    email: str | None = None
+    name: str | None = None
+    avatar_url: str | None = None
+    provider_id: str | None = None
+    callback_url = f"http://localhost:8000/api/auth/oauth/{provider}/callback"
+
+    try:
+        if provider == "github":
+            if not settings.auth_github_id or not settings.auth_github_secret:
+                return RedirectResponse(url=f"{frontend_url}/login?error=github_not_configured")
+
+            with httpx.Client(timeout=10) as client:
+                token_resp = client.post(
+                    "https://github.com/login/oauth/access_token",
+                    data={
+                        "client_id": settings.auth_github_id,
+                        "client_secret": settings.auth_github_secret,
+                        "code": code,
+                    },
+                    headers={"Accept": "application/json"},
+                )
+                token_data = token_resp.json()
+                access_token = token_data.get("access_token")
+                if not access_token:
+                    return RedirectResponse(url=f"{frontend_url}/login?error=github_token_failed")
+
+                user_resp = client.get(
+                    "https://api.github.com/user",
+                    headers={"Authorization": f"Bearer {access_token}", "User-Agent": "AI-Codebase-Archaeologist"},
+                )
+                gh_user = user_resp.json()
+                provider_id = str(gh_user.get("id"))
+                name = gh_user.get("name") or gh_user.get("login")
+                avatar_url = gh_user.get("avatar_url")
+                email = gh_user.get("email")
+
+                if not email:
+                    emails_resp = client.get(
+                        "https://api.github.com/user/emails",
+                        headers={"Authorization": f"Bearer {access_token}", "User-Agent": "AI-Codebase-Archaeologist"},
+                    )
+                    emails = emails_resp.json()
+                    primary = next((e["email"] for e in emails if e.get("primary")), None)
+                    email = primary or (emails[0]["email"] if emails else f"{gh_user['login']}@github.local")
+
+        elif provider == "google":
+            if not settings.auth_google_id or not settings.auth_google_secret:
+                return RedirectResponse(url=f"{frontend_url}/login?error=google_not_configured")
+
+            with httpx.Client(timeout=10) as client:
+                token_resp = client.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "client_id": settings.auth_google_id,
+                        "client_secret": settings.auth_google_secret,
+                        "code": code,
+                        "grant_type": "authorization_code",
+                        "redirect_uri": callback_url,
+                    },
+                )
+                token_data = token_resp.json()
+                access_token = token_data.get("access_token")
+                if not access_token:
+                    return RedirectResponse(url=f"{frontend_url}/login?error=google_token_failed")
+
+                user_resp = client.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                g_user = user_resp.json()
+                provider_id = str(g_user.get("id"))
+                email = g_user.get("email")
+                name = g_user.get("name")
+                avatar_url = g_user.get("picture")
+        else:
+            return RedirectResponse(url=f"{frontend_url}/login?error=unsupported_provider")
+
+    except Exception as exc:
+        return RedirectResponse(url=f"{frontend_url}/login?error=oauth_exception")
+
+    if not email:
+        return RedirectResponse(url=f"{frontend_url}/login?error=no_email")
+
+    # Find or create user + tenant
+    user = db.scalar(select(User).where(User.email == email))
+    if not user:
+        user = User(email=email, name=name, avatar_url=avatar_url)
+        db.add(user)
+        db.flush()
+        tenant = Tenant(name=f"{email}'s workspace", owner_user_id=user.id)
+        db.add(tenant)
+        db.flush()
+        member = TenantMember(tenant_id=tenant.id, user_id=user.id, role="owner")
+        db.add(member)
+        db.flush()
+    else:
+        membership = db.scalar(select(TenantMember).where(TenantMember.user_id == user.id).limit(1))
+        if not membership:
+            tenant = Tenant(name=f"{email}'s workspace", owner_user_id=user.id)
+            db.add(tenant)
+            db.flush()
+            member = TenantMember(tenant_id=tenant.id, user_id=user.id, role="owner")
+            db.add(member)
+            db.flush()
+
+    if provider_id:
+        acc = db.scalar(
+            select(AuthAccount).where(AuthAccount.provider == provider, AuthAccount.provider_account_id == provider_id)
+        )
+        if not acc:
+            acc = AuthAccount(user_id=user.id, provider=provider, provider_account_id=provider_id)
+            db.add(acc)
+
+    db.commit()
+    db.refresh(user)
+
+    membership = db.scalar(select(TenantMember).where(TenantMember.user_id == user.id).limit(1))
+    jwt_token = create_access_token(user.id, membership.tenant_id)
+
+    # Set session cookie and redirect to frontend home with token
+    response = RedirectResponse(url=f"{frontend_url}/?token={jwt_token}", status_code=302)
+    response.set_cookie(
+        key="session_token",
+        value=jwt_token,
+        httponly=False,
+        samesite="lax",
+        secure=False,  # True in production with HTTPS
+        max_age=60 * 60 * 24 * 7,  # 7 days
+    )
+    return response
 
 
 # ------------------------------------------------------------------

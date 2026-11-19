@@ -1,0 +1,310 @@
+"use client";
+
+import React, { createContext, useContext, useEffect, useState } from "react";
+
+export type Locale = "en" | "vi";
+
+const translations = {
+  en: {
+    brand: "Archaeologist",
+    brandSubtitle: "Evidence-first repository intelligence",
+    navAnalyze: "Analyze",
+    navLibrary: "Repositories",
+    navSignIn: "Sign In",
+    navSignOut: "Sign Out",
+    demoTag: "Demo",
+    guestTag: "Guest",
+    connecting: "Connecting…",
+    heroTitle1: "Dive deep into",
+    heroTitle2: "source code.",
+    heroSubhead: "From any GitHub repository, trace dependencies, inspect commits, and ground answers with exact line citations.",
+    inputLabel: "Public or authorized GitHub repository URL",
+    inputPlaceholder: "https://github.com/owner/repo",
+    btnAnalyze: "Analyze repository",
+    btnAnalyzing: "Analyzing…",
+    artSource: "01   Source code",
+    artDeps: "02   Dependencies",
+    artEvidence: "03   Evidence",
+    libraryTitle: "Analyzed Repositories",
+    btnRefresh: "Refresh",
+    emptyLibraryTitle: "Your first repository",
+    emptyLibraryDesc: "Paste a GitHub repository link above to create your first analysis snapshot.",
+    filesUnit: "files",
+    noSnapshot: "No completed snapshot",
+    openToRetry: "Open repository to retry",
+    crumbLibrary: "← Repositories",
+    btnResync: "Re-analyze",
+    btnResyncing: "Analyzing…",
+    noSnapshotTitle: "No completed snapshot available",
+    noSnapshotDesc: "Click Re-analyze to trigger ingestion and analysis for this repository.",
+    tabOverview: "Overview",
+    tabFiles: "Source Code",
+    tabAsk: "Grounded Q&A",
+    tabTimeline: "Timeline",
+    tabGraph: "Dependencies",
+    tabFindings: "Technical Debt",
+    tabPulls: "Pull Requests",
+    statFiles: "Files Read",
+    statSymbols: "Symbols",
+    statDeps: "Dependencies",
+    statChunks: "Indexed Chunks",
+    statPulls: "Pull Requests",
+    factSha: "Commit SHA",
+    factBranch: "Branch",
+    factBranchUnknown: "Not specified",
+    filesHeading: "Source Code Explorer",
+    filesCountText: "Search among",
+    filesCountTotal: "total files",
+    filesFilterLabel: "Filter file path",
+    filesFilterPlaceholder: "src/app.py or main.py",
+    filesEmpty: "No matching files found in this snapshot.",
+    filesPrompt: "Select a file to inspect its snapshot source code.",
+    linesUnit: "lines",
+    askHeading: "Grounded Q&A",
+    askPromptLabel: "Ask a question about this snapshot",
+    askPlaceholder: "e.g., Which module handles repository connections and database models?",
+    btnAsk: "Submit Question",
+    btnAsking: "Retrieving grounded evidence…",
+    resultGrounded: "Grounded Retrieval Result",
+    resultUngrounded: "Insufficient Evidence Meeting Threshold",
+    scoreLabel: "Score",
+    exactSourceLink: "View exact source on GitHub ↗",
+    noEvidence: "No evidence found meeting confidence threshold.",
+    timelineHeading: "Commit History",
+    timelineSubhead: "Up to 100 recent collected commits for this repository.",
+    timelineEmpty: "No commit history found in this repository.",
+    graphHeading: "Dependencies & Impact Analysis",
+    graphSubhead: "Inspect reverse dependency blast radius up to two hops.",
+    graphTargetLabel: "Target file path to analyze",
+    btnImpact: "Analyze Impact (Depth 2)",
+    btnImpactBusy: "Analyzing…",
+    impactAffectedHeading: "affected files",
+    graphEdgesHeading: "Resolved Internal Dependencies",
+    graphEdgesEmpty: "No resolved internal dependencies found in this snapshot.",
+    findingsHeading: "Technical Debt Findings",
+    findingsSubhead: "Static rule violations for code size, coupling, and circular dependencies.",
+    findingsEmpty: "No technical debt detected for current rules.",
+    pullsHeading: "Pull Requests",
+    pullsSubhead: "Pull Request metadata collected from GitHub API.",
+    pullsEmpty: "No Pull Requests recorded for this repository.",
+    pullsMerged: "Merged on",
+    pullsCreated: "Created on",
+    loginTitle: "Sign in to Archaeologist",
+    loginSubtitle: "Choose an authentication method to access your workspace.",
+    continueGitHub: "Continue with GitHub",
+    continueGoogle: "Continue with Google",
+    configRequiredTitle: "CONFIGURATION REQUIRED",
+    configRequiredNotice: "OAuth is not configured in this environment. To enable third-party login, set AUTH_GITHUB_ID, AUTH_GITHUB_SECRET, AUTH_GOOGLE_ID, and AUTH_GOOGLE_SECRET in .env.",
+    githubAppNotice: "GitHub App repository access requires GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY. Ingest of private repositories will be enabled once configured.",
+    devLoginTitle: "Development / Testing Access",
+    devLoginDesc: "Sign in using a registered workspace account or create a new local workspace. (Disabled in production)",
+    emailLabel: "Email address",
+    nameLabel: "Developer Name (optional)",
+    btnSignIn: "Sign In",
+    btnCreateWorkspace: "Create Workspace",
+    btnBackHome: "← Back to Home",
+    phases: {
+      queued: "Queued for worker",
+      claimed: "Task claimed",
+      cloning: "Cloning repository",
+      scanning: "Scanning files",
+      parsing: "Parsing AST symbols",
+      indexing: "Indexing vectors",
+      history_mapping: "Mapping Git history",
+      pull_requests: "Syncing Pull Requests",
+      findings: "Analyzing technical debt",
+      completed: "Analysis completed",
+      failed: "Analysis failed",
+    },
+    status: {
+      registered: "Registered",
+      queued: "Queued",
+      running: "Analyzing",
+      ready: "Ready",
+      completed: "Completed",
+      failed: "Failed",
+      high: "High",
+      medium: "Medium",
+      info: "Info",
+    },
+    errors: {
+      apiConnection: "Cannot connect to backend API. Please verify the backend service is running.",
+      generic: "Failed to load data. Please retry.",
+    },
+  },
+  vi: {
+    brand: "Archaeologist",
+    brandSubtitle: "Trí tuệ phân tích mã nguồn dựa trên bằng chứng",
+    navAnalyze: "Phân tích",
+    navLibrary: "Kho mã",
+    navSignIn: "Đăng nhập",
+    navSignOut: "Đăng xuất",
+    demoTag: "Demo",
+    guestTag: "Khách",
+    connecting: "Đang kết nối…",
+    heroTitle1: "Đi sâu vào",
+    heroTitle2: "mã nguồn.",
+    heroSubhead: "Từ một kho GitHub, lần theo phụ thuộc, tra cứu commit và tìm câu trả lời chính xác tới từng dòng code.",
+    inputLabel: "Liên kết kho GitHub công khai hoặc được cấp quyền",
+    inputPlaceholder: "https://github.com/owner/repo",
+    btnAnalyze: "Phân tích kho",
+    btnAnalyzing: "Đang mở…",
+    artSource: "01   Mã nguồn",
+    artDeps: "02   Phụ thuộc",
+    artEvidence: "03   Bằng chứng",
+    libraryTitle: "Kho mã đã thêm",
+    btnRefresh: "Làm mới",
+    emptyLibraryTitle: "Kho mã đầu tiên của bạn",
+    emptyLibraryDesc: "Dán liên kết GitHub ở trên để tạo bản phân tích đầu tiên.",
+    filesUnit: "tệp",
+    noSnapshot: "Chưa có snapshot hoàn tất",
+    openToRetry: "Mở kho để thử lại",
+    crumbLibrary: "← Kho mã",
+    btnResync: "Phân tích lại",
+    btnResyncing: "Đang phân tích…",
+    noSnapshotTitle: "Chưa có snapshot hoàn tất",
+    noSnapshotDesc: "Chọn Phân tích lại để tạo snapshot cho kho mã này.",
+    tabOverview: "Tổng quan",
+    tabFiles: "Mã nguồn",
+    tabAsk: "Hỏi đáp",
+    tabTimeline: "Lịch sử",
+    tabGraph: "Phụ thuộc",
+    tabFindings: "Nợ kỹ thuật",
+    tabPulls: "Pull Requests",
+    statFiles: "Tệp đã đọc",
+    statSymbols: "Ký hiệu mã",
+    statDeps: "Phụ thuộc",
+    statChunks: "Đoạn đã lập chỉ mục",
+    statPulls: "Pull Requests",
+    factSha: "Commit SHA",
+    factBranch: "Nhánh",
+    factBranchUnknown: "Không có thông tin",
+    filesHeading: "Trình duyệt mã nguồn",
+    filesCountText: "Tìm trong",
+    filesCountTotal: "tổng số tệp",
+    filesFilterLabel: "Lọc đường dẫn tệp",
+    filesFilterPlaceholder: "app/main.py hoặc src/index.ts",
+    filesEmpty: "Không tìm thấy tệp phù hợp trong snapshot này.",
+    filesPrompt: "Chọn một tệp để đọc mã nguồn theo snapshot.",
+    linesUnit: "dòng",
+    askHeading: "Hỏi về mã nguồn",
+    askPromptLabel: "Câu hỏi về snapshot này",
+    askPlaceholder: "Ví dụ: Module nào xử lý liên kết kho GitHub và lưu database?",
+    btnAsk: "Gửi câu hỏi",
+    btnAsking: "Đang tìm bằng chứng…",
+    resultGrounded: "Kết quả truy xuất có bằng chứng",
+    resultUngrounded: "Chưa đủ bằng chứng vượt ngưỡng tin cậy",
+    scoreLabel: "Điểm truy xuất",
+    exactSourceLink: "Xem mã nguồn trên GitHub ↗",
+    noEvidence: "Không có bằng chứng nào vượt ngưỡng tin cậy.",
+    timelineHeading: "Lịch sử commit",
+    timelineSubhead: "Tối đa 100 commit gần nhất đã thu thập của kho.",
+    timelineEmpty: "Kho này chưa có commit nào trong lịch sử đã thu thập.",
+    graphHeading: "Phụ thuộc và ảnh hưởng",
+    graphSubhead: "Kiểm tra những tệp có thể chịu ảnh hưởng trong tối đa hai bước phụ thuộc ngược.",
+    graphTargetLabel: "Đường dẫn tệp cần kiểm tra",
+    btnImpact: "Kiểm tra ảnh hưởng (Độ sâu 2)",
+    btnImpactBusy: "Đang kiểm tra…",
+    impactAffectedHeading: "tệp chịu ảnh hưởng",
+    graphEdgesHeading: "Liên kết nội bộ đã tải",
+    graphEdgesEmpty: "Chưa tìm thấy liên kết nội bộ trong snapshot này.",
+    findingsHeading: "Nợ kỹ thuật",
+    findingsSubhead: "Các dấu hiệu về kích thước mã, số phụ thuộc và chu trình mã.",
+    findingsEmpty: "Bộ quy tắc hiện tại chưa ghi nhận dấu hiệu nợ kỹ thuật trong snapshot này.",
+    pullsHeading: "Pull Requests",
+    pullsSubhead: "Metadata các Pull Request gần nhất thu thập từ GitHub API.",
+    pullsEmpty: "Kho này chưa có Pull Request nào được ghi nhận.",
+    pullsMerged: "Đã merge ngày",
+    pullsCreated: "Tạo ngày",
+    loginTitle: "Đăng nhập Archaeologist",
+    loginSubtitle: "Chọn phương thức xác thực để truy cập workspace của bạn.",
+    continueGitHub: "Tiếp tục với GitHub",
+    continueGoogle: "Tiếp tục với Google",
+    configRequiredTitle: "CẦN CẤU HÌNH HỆ THỐNG",
+    configRequiredNotice: "Chưa cấu hình OAuth trong môi trường này. Để đăng nhập, vui lòng thiết lập AUTH_GITHUB_ID, AUTH_GITHUB_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET trong .env.",
+    githubAppNotice: "Quyền truy cập kho riêng tư yêu cầu GITHUB_APP_ID và GITHUB_APP_PRIVATE_KEY. Chức năng sẽ sẵn sàng sau khi cấu hình.",
+    devLoginTitle: "Truy cập Phát triển / Kiểm thử",
+    devLoginDesc: "Đăng nhập bằng tài khoản workspace hoặc tạo workspace cục bộ mới. (Vô hiệu hóa trên môi trường production)",
+    emailLabel: "Địa chỉ email",
+    nameLabel: "Họ tên lập trình viên (tùy chọn)",
+    btnSignIn: "Đăng Nhập",
+    btnCreateWorkspace: "Tạo Workspace",
+    btnBackHome: "← Quay về trang chủ",
+    phases: {
+      queued: "Đang chờ worker",
+      claimed: "Đã nhận tác vụ",
+      cloning: "Đang tải kho",
+      scanning: "Đang đọc tệp",
+      parsing: "Đang phân tích mã",
+      indexing: "Đang lập chỉ mục",
+      history_mapping: "Đang đọc lịch sử",
+      pull_requests: "Đang thu thập Pull Requests",
+      findings: "Đang kiểm tra nợ kỹ thuật",
+      completed: "Phân tích hoàn tất",
+      failed: "Phân tích thất bại",
+    },
+    status: {
+      registered: "Đã thêm",
+      queued: "Đang chờ",
+      running: "Đang phân tích",
+      ready: "Sẵn sàng",
+      completed: "Hoàn tất",
+      failed: "Thất bại",
+      high: "Mức cao",
+      medium: "Mức vừa",
+      info: "Thông tin",
+    },
+    errors: {
+      apiConnection: "Chưa kết nối được API backend. Kiểm tra backend đang chạy rồi thử lại.",
+      generic: "Không tải được dữ liệu. Vui lòng thử lại.",
+    },
+  },
+};
+
+export type Translations = typeof translations.en;
+
+interface I18nContextType {
+  locale: Locale;
+  setLocale: (loc: Locale) => void;
+  t: any;
+}
+
+const I18nContext = createContext<I18nContextType>({
+  locale: "en",
+  setLocale: () => {},
+  t: translations.en,
+});
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>("en");
+
+  useEffect(() => {
+    // Check cookie or localStorage for preferred locale; default is en
+    const match = document.cookie.match(/(^| )NEXT_LOCALE=([^;]+)/);
+    const cookieLoc = match ? match[2] : null;
+    const stored = (cookieLoc || localStorage.getItem("preferred_locale")) as Locale | null;
+    if (stored === "vi" || stored === "en") {
+      setLocaleState(stored);
+    }
+  }, []);
+
+  function setLocale(loc: Locale) {
+    setLocaleState(loc);
+    try {
+      localStorage.setItem("preferred_locale", loc);
+      document.cookie = `NEXT_LOCALE=${loc}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch {}
+  }
+
+  const t = translations[locale] || translations.en;
+
+  return (
+    <I18nContext.Provider value={{ locale, setLocale, t }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export function useI18n() {
+  return useContext(I18nContext);
+}

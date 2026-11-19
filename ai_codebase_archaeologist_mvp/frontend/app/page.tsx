@@ -1,61 +1,150 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
-import { api, Repo } from "../lib/api";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { api } from "../lib/api";
+import { useI18n } from "../lib/i18n";
+import { messageOf, ReadView, Status, useRead } from "./components/WorkspaceUI";
+
+function SnapshotArt() {
+  const { t } = useI18n();
+  return (
+    <figure className="art" role="img" aria-label="Illustration of three snapshot layers: source code, dependencies, and evidence">
+      <div className="art-grid" />
+      <div className="sculpture" aria-hidden="true">
+        <div className="plate floor" />
+        <div className="plate basal" />
+        <div className="plate mesh" />
+        <div className="plate trace">
+          <i /><i /><i />
+        </div>
+        <div className="plate sheet">
+          <div className="sheet-head">
+            <b /><b /><b />
+          </div>
+          <div className="sheet-code">
+            {[62, 78, 48, 66, 39, 55].map((w, i) => (
+              <i key={w} style={{ width: w + "%", marginLeft: i % 3 === 0 ? 0 : "10%" }} />
+            ))}
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span>{t.artSource}</span>
+        <span>{t.artDeps}</span>
+        <span>{t.artEvidence}</span>
+      </figcaption>
+    </figure>
+  );
+}
 
 export default function HomePage() {
-  const [url, setUrl] = useState("https://github.com/pallets/flask");
-  const [repos, setRepos] = useState<Repo[]>([]);
+  const { t } = useI18n();
+  const router = useRouter();
+  const repos = useRead(api.repos);
+  const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [createdId, setCreatedId] = useState("");
 
-  async function refresh() {
-    try { setRepos(await api.repos()); } catch (e:any) { setError(e.message); }
-  }
-  useEffect(() => { refresh(); }, []);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true); setError("");
+  async function analyze(event: FormEvent) {
+    event.preventDefault();
+    if (!url.trim() || busy) return;
+    setError("");
+    setCreatedId("");
+    setBusy(true);
     try {
-      const repo = await api.createRepo(url);
+      const repo = await api.createRepo(url.trim());
+      setCreatedId(repo.id);
       const job = await api.sync(repo.id);
-      window.location.href = `/repos/${repo.id}?job=${job.id}`;
-    } catch (e:any) { setError(e.message); }
-    finally { setBusy(false); }
+      router.push("/repos/" + repo.id + "?job=" + encodeURIComponent(job.id));
+    } catch (err) {
+      setError(messageOf(err));
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="hero">
-      <section className="card stack">
-        <div>
-          <h1>Hiểu codebase bằng bằng chứng, không bằng phỏng đoán.</h1>
-          <p className="muted">Nhập một public GitHub repository. Hệ thống chụp snapshot theo commit SHA, phân tích symbol/dependency, lập chỉ mục và trả lời kèm file + dòng mã.</p>
+    <>
+      <section id="analyze" className="landing">
+        <div className="intro">
+          <h1>
+            {t.heroTitle1}
+            <br />
+            <em>{t.heroTitle2}</em>
+          </h1>
+          <p>{t.heroSubhead}</p>
+          <form onSubmit={analyze} className="analyze-form">
+            <label htmlFor="repo-url">{t.inputLabel}</label>
+            <div className="entry">
+              <input
+                id="repo-url"
+                type="url"
+                required
+                maxLength={1000}
+                placeholder={t.inputPlaceholder}
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setError("");
+                }}
+              />
+              <button disabled={busy}>{busy ? t.btnAnalyzing : t.btnAnalyze}</button>
+            </div>
+          </form>
+          {error && (
+            <div className="notice error" role="alert">
+              {error}{" "}
+              {createdId && <Link href={"/repos/" + createdId}>{t.openToRetry}</Link>}
+            </div>
+          )}
         </div>
-        {error && <div className="error">{error}</div>}
-        <form className="stack" onSubmit={submit}>
-          <label>
-            <div className="muted" style={{marginBottom:6}}>GitHub repository URL</div>
-            <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://github.com/owner/repo" />
-          </label>
-          <button disabled={busy}>{busy ? "Đang tạo job..." : "Analyze repository"}</button>
-        </form>
-        <p className="muted" style={{fontSize:13, marginBottom:0}}>MVP chỉ nhận HTTPS github.com và không chạy code/build/test của repository.</p>
+        <SnapshotArt />
       </section>
-      <section className="card">
-        <h2>Repositories</h2>
-        <div className="repo-list">
-          {repos.length === 0 && <p className="muted">Chưa có repository nào.</p>}
-          {repos.map(repo => (
-            <a className="repo-item" href={`/repos/${repo.id}`} key={repo.id}>
-              <div>
-                <div className="repo-title">{repo.owner}/{repo.name}</div>
-                <div className="muted" style={{fontSize:12}}>{repo.snapshot ? repo.snapshot.commit_sha.slice(0,8) : "chưa có snapshot"}</div>
+
+      <section id="library" className="library">
+        <div className="section-head">
+          <h2>{t.libraryTitle}</h2>
+          <button className="quiet" onClick={repos.retry} disabled={repos.state.status === "loading"}>
+            {t.btnRefresh}
+          </button>
+        </div>
+        <ReadView read={repos}>
+          {(rows) =>
+            rows.length === 0 ? (
+              <div className="empty-library">
+                <span className="book" aria-hidden="true" />
+                <div>
+                  <h3>{t.emptyLibraryTitle}</h3>
+                  <p>{t.emptyLibraryDesc}</p>
+                </div>
               </div>
-              <span className={`status ${repo.status}`}>{repo.status}</span>
-            </a>
-          ))}
-        </div>
+            ) : (
+              <ul className="repo-list">
+                {rows.map((repo) => (
+                  <li key={repo.id}>
+                    <Link href={"/repos/" + repo.id} className="repo-row">
+                      <span className="book" aria-hidden="true" />
+                      <div className="repo-cell">
+                        <strong>
+                          {repo.owner}/{repo.name}
+                        </strong>
+                        <small>
+                          {repo.snapshot
+                            ? `${repo.snapshot.file_count} ${t.filesUnit} · ${repo.snapshot.pr_count ?? 0} PRs · ${repo.snapshot.commit_sha.slice(0, 8)}`
+                            : t.noSnapshot}
+                        </small>
+                      </div>
+                      <Status value={repo.status} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+        </ReadView>
       </section>
-    </div>
+    </>
   );
 }
