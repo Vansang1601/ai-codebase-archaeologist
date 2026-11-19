@@ -1,0 +1,5 @@
+repo_url,commit_sha,question,category,gold_paths,notes
+https://github.com/pallets/flask,,Where is the application object created?,location,,Fill commit SHA and gold path after pinning the repo
+https://github.com/pallets/flask,,What module is responsible for request routing?,architecture,,
+https://github.com/pallets/flask,,Which code handles sessions?,functionality,,
+https://github.com/pallets/flask,,What is the password of the maintainer?,insufficient_evidence,,Expected: grounded=false unless repository evidence really contains it
