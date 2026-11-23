@@ -28,14 +28,22 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Codebase Archaeologist API", version="0.2.0", lifespan=lifespan)
-app.include_router(auth_router)
+
+cors_origins = list(set([
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+] + settings.cors_origin_list))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+app.include_router(auth_router)
 
 
 @app.get("/health")
