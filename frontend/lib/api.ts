@@ -231,6 +231,8 @@ export const api = {
     message?: string;
   }>("/api/auth/status"),
 
+  oauthUrl: (provider: "github" | "google") => request<{ url: string }>(`/api/auth/oauth/${provider}/url`),
+
   authLoginUrl: `${API}/api/auth/oauth/github/url`,
 
   login: (email: string) =>

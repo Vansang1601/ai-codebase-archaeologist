@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api, type JobInfo, type Repo } from "../../../lib/api";
 import { useI18n } from "../../../lib/i18n";
 import { Files, Findings, Graph, Overview, PullRequests, Timeline } from "../../components/RepoPanels";
+import Icon from "../../components/Icon";
 import FloatingChat from "../../components/FloatingChat";
 import { messageOf, Status } from "../../components/WorkspaceUI";
 
@@ -14,7 +15,8 @@ function ongoing(status?: string) {
 }
 
 function Workspace({ id }: { id: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const vi = locale === "vi";
   const [repo, setRepo] = useState<Repo | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [tab, setTab] = useState(0);
@@ -24,12 +26,12 @@ function Workspace({ id }: { id: string }) {
   const [error, setError] = useState("");
 
   const tabDefs = [
-    { label: t.tabOverview, Component: Overview },
-    { label: t.tabFiles, Component: Files },
-    { label: t.tabTimeline, Component: Timeline },
-    { label: t.tabGraph, Component: Graph },
-    { label: t.tabFindings, Component: Findings },
-    { label: t.tabPulls, Component: PullRequests },
+    { label: t.tabOverview, Component: Overview, icon: "overview" },
+    { label: t.tabFiles, Component: Files, icon: "file" },
+    { label: t.tabTimeline, Component: Timeline, icon: "clock" },
+    { label: t.tabGraph, Component: Graph, icon: "graph" },
+    { label: t.tabFindings, Component: Findings, icon: "audit" },
+    { label: t.tabPulls, Component: PullRequests, icon: "branch" },
   ] as const;
 
   useEffect(() => {
@@ -84,15 +86,15 @@ function Workspace({ id }: { id: string }) {
     <div className="notice error" role="alert">
       {error}{" "}
       <button className="text-action" onClick={() => setRevision((v) => v + 1)}>
-        Retry
+        {vi ? "Thử lại" : "Retry"}
       </button>
     </div>
   );
 
   if (!repo) {
     return (
-      <section className="workspace">
-        <Link href="/#library">{t.crumbLibrary}</Link>
+      <section className="wrap workspace">
+        <Link className="crumb" href="/#library">{t.crumbLibrary}</Link>
         {errorBox || <p className="notice" role="status">{t.connecting}</p>}
       </section>
     );
@@ -103,25 +105,26 @@ function Workspace({ id }: { id: string }) {
   const phaseLabel = job ? (t.phases as Record<string, string>)[job.phase] || job.phase : "";
 
   return (
-    <div className="workspace">
+    <div className="wrap workspace">
       <Link className="crumb" href="/#library">
         {t.crumbLibrary}
       </Link>
-      <div className="repo-head">
-        <div>
-          <span className="owner">{repo.owner} /</span>
-          <h1>{repo.name}</h1>
+      <div className="workspace-banner">
+        <div className="repo-head">
+          <div>
+            <span className="owner"><Icon name="repository" size={17}/>{repo.owner} /</span>
+            <h1>{repo.name}</h1>
+          </div>
+          <button className="quiet" disabled={busy} onClick={sync}>
+            <Icon name="refresh" size={15}/>{busy ? t.btnResyncing : t.btnResync}
+          </button>
         </div>
-        <button className="quiet" disabled={busy} onClick={sync}>
-          {busy ? t.btnResyncing : t.btnResync}
-        </button>
-      </div>
 
-      <div className="repo-meta">
-        <Status value={ongoing(job?.status) ? job!.status : repo.status} />
-        {repo.snapshot && <code>SHA {repo.snapshot.commit_sha.slice(0, 12)}</code>}
+        <div className="repo-meta">
+          <Status value={ongoing(job?.status) ? job!.status : repo.status} />
+          {repo.snapshot && <code>SHA {repo.snapshot.commit_sha.slice(0, 12)}</code>}
+        </div>
       </div>
-
       {errorBox}
 
       {job && (ongoing(job.status) || job.status === "failed") && (
@@ -130,7 +133,7 @@ function Workspace({ id }: { id: string }) {
             <strong>{phaseLabel}</strong>
             <span>{job.progress}%</span>
           </div>
-          <progress value={job.progress} max={100} aria-label="Ingestion progress" />
+          <progress value={job.progress} max={100} aria-label={vi ? "Tiến độ phân tích" : "Indexing progress"} />
           {job.error && <p className="notice error">{job.error}</p>}
         </div>
       )}
@@ -138,7 +141,7 @@ function Workspace({ id }: { id: string }) {
       {repo.snapshot ? (
         <>
           <div className="sections-container">
-            <nav aria-label="Analysis Sections" className="sections">
+            <nav aria-label={vi ? "Các mục phân tích" : "Analysis sections"} className="sections">
               {tabDefs.map((def, i) => (
                 <button
                   key={def.label}
@@ -146,24 +149,14 @@ function Workspace({ id }: { id: string }) {
                   aria-current={i === tab ? "page" : undefined}
                   onClick={() => setTab(i)}
                 >
-                  {def.label}
+                  <Icon name={def.icon} size={16}/>{def.label}
                 </button>
               ))}
             </nav>
-            <button
-              type="button"
-              className="section-ask-pill"
-              onClick={() => setChatOpen(true)}
-              title={t.tabAsk}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              <span>{t.tabAsk}</span>
-            </button>
+
           </div>
           <ActivePanel key={repo.snapshot.id} repo={repo} />
-          <FloatingChat repo={repo} isOpen={chatOpen} onToggle={setChatOpen} />
+          <FloatingChat key={repo.snapshot.id} repo={repo} isOpen={chatOpen} onToggle={setChatOpen} />
         </>
       ) : (
         <div className="panel">

@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Icon from "./Icon";
 import { useI18n } from "../../lib/i18n";
 
-export function messageOf(error: unknown) {
+export function messageOf(error: unknown, locale: "en" | "vi" = "en") {
   if (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)) {
-    return "Cannot connect to backend API. Please verify backend service is running.";
+    return locale === "vi" ? "Chưa kết nối được máy chủ. Kiểm tra backend rồi thử lại." : "Could not reach the server. Check that the backend is running and try again.";
   }
-  return error instanceof Error ? error.message : "Failed to load data. Please retry.";
+  return error instanceof Error ? error.message : locale === "vi" ? "Không tải được dữ liệu. Vui lòng thử lại." : "Could not load data. Please try again.";
 }
 
 type ReadState<T> =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  | { status: "error"; error: unknown }
   | { status: "ready"; data: T };
 
 export function useRead<T>(load: () => Promise<T>) {
@@ -23,7 +24,7 @@ export function useRead<T>(load: () => Promise<T>) {
     setState({ status: "loading" });
     load().then(
       data => { if (current) setState({ status: "ready", data }); },
-      error => { if (current) setState({ status: "error", message: messageOf(error) }); }
+      error => { if (current) setState({ status: "error", error }); }
     );
     return () => { current = false; };
   }, [load, version]);
@@ -41,7 +42,7 @@ export function ReadView<T>({ read, children }: {
   if (read.state.status === "error") {
     return (
       <div className="notice error" role="alert">
-        {read.state.message}{" "}
+        {messageOf(read.state.error, locale)}{" "}
         <button className="text-action" onClick={read.retry}>
           {retryLabel}
         </button>
@@ -51,7 +52,7 @@ export function ReadView<T>({ read, children }: {
   if (read.state.status === "loading") {
     return (
       <p className="notice" role="status">
-        {loadingLabel}
+        <span className="spinner" aria-hidden="true"/> {loadingLabel}
       </p>
     );
   }
@@ -67,7 +68,7 @@ export function Status({ value }: { value: string }) {
 export function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <i /><i /><i />
+      <Icon name="layers" size={23} />
     </span>
   );
 }

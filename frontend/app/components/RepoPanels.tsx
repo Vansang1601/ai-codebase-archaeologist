@@ -3,6 +3,7 @@
 import { useCallback, useState, type FormEvent } from "react";
 import { api, type AskResult, type ImpactResult, type Repo } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import Icon from "./Icon";
 import { messageOf, ReadView, Status, useRead } from "./WorkspaceUI";
 
 function sourceUrl(repo: Repo, sha: string, path: string, start?: number | null, end?: number | null) {
@@ -25,7 +26,7 @@ export function Overview({ repo }: { repo: Repo }) {
   return (
     <section className="panel">
       <h2>{t.tabOverview}</h2>
-      <p className="muted">{t.factBranchUnknown}</p>
+      <p className="muted">{locale === "vi" ? "Số liệu của phiên bản đã lập chỉ mục." : "Index totals for this revision."}</p>
       <dl className="metrics">
         {metrics.map(([name, count]) => (
           <div key={name}>
@@ -51,6 +52,7 @@ export function Overview({ repo }: { repo: Repo }) {
 }
 
 function SourceFile({ id, path }: { id: string; path: string }) {
+  const { locale } = useI18n();
   const read = useRead(useCallback(() => api.file(id, path), [id, path]));
   return (
     <ReadView read={read}>
@@ -60,7 +62,7 @@ function SourceFile({ id, path }: { id: string; path: string }) {
             <strong>{file.path}</strong>
             <small>{file.commit_sha.slice(0, 8)}</small>
           </div>
-          <pre tabIndex={0} aria-label="Source code with line numbers">
+          <pre tabIndex={0} aria-label={locale === "vi" ? "Mã nguồn kèm số dòng" : "Source code with line numbers"}>
             {file.content.split("\n").map((line, i) => String(i + 1).padStart(4) + "  " + line).join("\n")}
           </pre>
         </div>
@@ -110,7 +112,7 @@ export function Files({ repo }: { repo: Repo }) {
                           aria-pressed={path === f.path}
                           onClick={() => setPath(f.path)}
                         >
-                          {f.path}
+                          <span><Icon name="file" size={15}/>{f.path}</span>
                           <small>
                             {f.language} · {f.line_count} {t.linesUnit}
                           </small>
@@ -406,7 +408,7 @@ export function PullRequests({ repo }: { repo: Repo }) {
             <ol className="history">
               {rows.map((pr) => (
                 <li key={pr.id}>
-                  <Status value={pr.state === "closed" ? (pr.merged_at ? "completed" : "failed") : "running"} />
+                  <Status value={pr.merged_at ? "merged" : pr.state} />
                   <div>
                     <strong>
                       <a

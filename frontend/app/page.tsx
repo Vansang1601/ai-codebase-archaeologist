@@ -2,92 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { api } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { messageOf, ReadView, Status, useRead } from "./components/WorkspaceUI";
-
-function ArchitecturePreview() {
-  const { locale } = useI18n();
-  const isVi = locale === "vi";
-
-  return (
-    <div className="hero-preview" aria-hidden="true">
-      <div className="preview-window">
-        <div className="preview-window-bar">
-          <div className="window-dots">
-            <span className="dot red" />
-            <span className="dot yellow" />
-            <span className="dot green" />
-          </div>
-          <span className="window-title">archaeologist // AST &amp; Dependency Inspector</span>
-          <span className="window-tag">SHA: 62b766e</span>
-        </div>
-        <div className="preview-body">
-          <div className="preview-meta-row">
-            <div className="preview-badge success">
-              <span className="pulse-indicator" />
-              <span>{isVi ? "AST Verified" : "AST Verified"}</span>
-            </div>
-            <div className="preview-badge neutral">
-              <span>{isVi ? "160+ Indexed Chunks" : "160+ Indexed Chunks"}</span>
-            </div>
-            <div className="preview-badge neutral">
-              <span>{isVi ? "Blast Radius: 2 hops" : "Blast Radius: 2 hops"}</span>
-            </div>
-          </div>
-          <div className="preview-code-block">
-            <div className="code-line">
-              <span className="ln">01</span>
-              <span className="kw">from</span>{" "}<span className="mod">app.retrieval</span>{" "}<span className="kw">import</span>{" "}<span className="fn">hybrid_retrieve</span>
-            </div>
-            <div className="code-line">
-              <span className="ln">02</span>
-              <span className="kw">from</span>{" "}<span className="mod">worker.parser</span>{" "}<span className="kw">import</span>{" "}<span className="fn">extract_symbols</span>
-            </div>
-            <div className="code-line">
-              <span className="ln">03</span>
-              <span className="comm"># Grounding check: fail-closed if score &lt; 0.08</span>
-            </div>
-            <div className="code-line">
-              <span className="ln">04</span>
-              <span className="kw">async def</span>{" "}<span className="fn">audit_snapshot</span>(repo_id: <span className="typ">str</span>, sha: <span className="typ">str</span>):
-            </div>
-            <div className="code-line">
-              <span className="ln">05</span>
-              <span className="tab">&nbsp;&nbsp;</span>evidence = <span className="kw">await</span>{" "}hybrid_retrieve(repo_id, sha)
-            </div>
-            <div className="code-line">
-              <span className="ln">06</span>
-              <span className="tab">&nbsp;&nbsp;</span><span className="kw">return</span>{" "}{"{"} grounded: <span className="bool">True</span>, citations: len(evidence) {"}"}
-            </div>
-          </div>
-          <div className="preview-audit-summary">
-            <div className="audit-item">
-              <span className="audit-label">{isVi ? "Phụ thuộc nội bộ" : "Resolved Deps"}</span>
-              <span className="audit-val">main.py ➔ auth ➔ models</span>
-            </div>
-            <div className="audit-item">
-              <span className="audit-label">{isVi ? "Nợ kỹ thuật" : "Tech Debt"}</span>
-              <span className="audit-val green">0 Circular Cycles</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import Icon from "./components/Icon";
+import StrataFigure from "./components/StrataFigure";
+import { BrandMark, messageOf, ReadView, Status, useRead } from "./components/WorkspaceUI";
 
 export default function HomePage() {
   const { t, locale } = useI18n();
+  const vi = locale === "vi";
   const router = useRouter();
   const repos = useRead(api.repos);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [createdId, setCreatedId] = useState("");
-
-  const isVi = locale === "vi";
+  const [query, setQuery] = useState("");
 
   async function analyze(event: FormEvent) {
     event.preventDefault();
@@ -101,297 +33,84 @@ export default function HomePage() {
       const job = await api.sync(repo.id);
       router.push("/repos/" + repo.id + "?job=" + encodeURIComponent(job.id));
     } catch (err) {
-      setError(messageOf(err));
+      setError(messageOf(err, locale));
       setBusy(false);
+      repos.retry();
     }
   }
 
-  function pickSample(sampleUrl: string) {
-    setUrl(sampleUrl);
-    setError("");
-  }
+  const stages = [
+    [vi ? "Chốt phiên bản" : "Capture a snapshot", vi ? "Gắn mã nguồn với một commit." : "Pin the source to a single commit."],
+    [vi ? "Lập chỉ mục" : "Index the code", vi ? "Đọc tệp, ký hiệu và quan hệ phụ thuộc." : "Map files, symbols and dependencies."],
+    [vi ? "Truy xuất bằng chứng" : "Trace the evidence", vi ? "Liên kết kết quả tới dòng mã gốc." : "Link findings back to source lines."],
+  ];
 
-  return (
-    <>
-      <section id="analyze" className="hero-section">
-        <div className="hero-content">
-          <div className="hero-badge">
-            <span className="badge-dot" />
-            <span>{isVi ? "Hệ thống phân tích mã nguồn theo bằng chứng" : "Evidence-First Repository Intelligence"}</span>
-          </div>
-
-          <h1 className="hero-headline">
-            {isVi ? "Khám phá chiều sâu" : "Inspect codebase"}{" "}
-            <em>{isVi ? "mã nguồn." : "architecture."}</em>
-          </h1>
-
-          <p className="hero-description">
-            {isVi
-              ? "Tự động phân tích kho GitHub, trích xuất AST symbols, lần theo đồ thị phụ thuộc và đối chiếu câu trả lời chính xác tới từng dòng code."
-              : "Analyze any GitHub repository, map AST dependency graphs, detect technical debt, and ground Q&A with verifiable line citations."}
-          </p>
-
-          <form onSubmit={analyze} className="hero-form">
-            <label htmlFor="repo-url" className="sr-only">
-              {t.inputLabel}
-            </label>
-            <div className="search-bar">
-              <span className="search-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-                </svg>
-              </span>
-              <input
-                id="repo-url"
-                type="url"
-                required
-                maxLength={1000}
-                placeholder={t.inputPlaceholder}
-                value={url}
-                onChange={(e) => {
-                  setUrl(e.target.value);
-                  setError("");
-                }}
-              />
-              <button type="submit" disabled={busy} className="btn-primary">
-                {busy ? (
-                  <>
-                    <span className="spinner" />
-                    <span>{t.btnAnalyzing}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>{t.btnAnalyze}</span>
-                    <span className="arrow-icon">→</span>
-                  </>
-                )}
-              </button>
+  return <>
+    <section id="analyze" className="hero-band">
+      <div className="wrap hero-layout">
+        <div className="hero-copy">
+          <div className="eyebrow"><Icon name="compass" size={15}/>{vi ? "Phân tích kho mã" : "Repository analysis"}</div>
+          <h1>{vi ? "Khám phá" : "Explore your"}<br/><em>{vi ? "mã nguồn." : "codebase."}</em></h1>
+          <p>{t.heroSubhead}</p>
+          <form onSubmit={analyze} className="import-form">
+            <label htmlFor="repo-url" className="sr-only">{t.inputLabel}</label>
+            <div className="url-field"><Icon name="github" size={19}/>
+              <input ref={inputRef} id="repo-url" type="url" autoCapitalize="none" spellCheck={false} required maxLength={1000}
+                placeholder="https://github.com/owner/repo" value={url} readOnly={busy}
+                onChange={e => { setUrl(e.target.value); setError(""); setCreatedId(""); }} />
             </div>
+            <button className="primary" type="submit" disabled={busy}>{busy ? t.btnAnalyzing : t.btnAnalyze}{busy ? <span className="spinner"/> : <Icon name="arrow" size={16}/>}</button>
           </form>
-
-          {/* Quick sample chips */}
-          <div className="sample-repos">
-            <span className="sample-label">{isVi ? "Thử nhanh:" : "Try sample:"}</span>
-            <button
-              type="button"
-              className="sample-chip"
-              onClick={() => pickSample("https://github.com/pallets/click")}
-            >
-              pallets/click
-            </button>
-            <button
-              type="button"
-              className="sample-chip"
-              onClick={() => pickSample("https://github.com/pallets/flask")}
-            >
-              pallets/flask
-            </button>
+          <div className="samples"><span>{vi ? "Thử với" : "Try with"}</span>
+            {["pallets/click", "pallets/flask"].map(sample => <button type="button" key={sample} disabled={busy} onClick={() => {
+              setUrl("https://github.com/" + sample); setError(""); setCreatedId(""); inputRef.current?.focus();
+            }}>{sample}<Icon name="upRight" size={11}/></button>)}
           </div>
-
-          {error && (
-            <div className="notice error hero-error" role="alert">
-              <span>{error}</span>
-              {createdId && <Link href={"/repos/" + createdId}>{t.openToRetry}</Link>}
-            </div>
-          )}
+          {error && <div className="notice error" role="alert">{error} {createdId && <Link href={"/repos/" + createdId}>{t.openToRetry}</Link>}</div>}
         </div>
+        <StrataFigure/>
+      </div>
+    </section>
 
-        <ArchitecturePreview />
-      </section>
-
-      <section id="library" className="library-section">
-        <div className="section-head">
-          <div className="library-title-group">
-            <h2>{t.libraryTitle}</h2>
-            {repos.state.status === "ready" && (
-              <span className="repo-count-badge">{repos.state.data.length}</span>
-            )}
+    <div className="wrap lower">
+      <div className="library-layout">
+        <section id="library" className="library">
+          <div className="section-head">
+            <div className="heading-inline"><h2>{t.libraryTitle}</h2>{repos.state.status === "ready" && <span className="count">{repos.state.data.length}</span>}</div>
+            <button className="quiet small" disabled={repos.state.status === "loading"} onClick={repos.retry}><Icon name="refresh" size={15}/>{t.btnRefresh}</button>
           </div>
-          <button
-            className="quiet refresh-btn"
-            onClick={repos.retry}
-            disabled={repos.state.status === "loading"}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
-            <span>{t.btnRefresh}</span>
-          </button>
+          <ReadView read={repos}>{rows => {
+            if (!rows.length) return <div className="empty-state">
+              <span className="empty-icon"><Icon name="repository" size={25}/></span>
+              <h3>{t.emptyLibraryTitle}</h3><p>{t.emptyLibraryDesc}</p>
+              <button className="text-action" onClick={() => inputRef.current?.focus()}>{vi ? "Thêm kho GitHub" : "Add a GitHub repository"}<Icon name="arrow" size={14}/></button>
+            </div>;
+            const filtered = rows.filter(r => (r.owner + "/" + r.name).toLowerCase().includes(query.trim().toLowerCase()));
+            return <div className="repo-list">
+              {(rows.length > 1 || query) && <label className="repo-filter"><Icon name="search" size={16}/><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={vi ? "Tìm theo chủ sở hữu hoặc tên kho…" : "Filter by owner or repository…"} aria-label={vi ? "Lọc kho mã" : "Filter repositories"}/></label>}
+              {filtered.map(r => <Link key={r.id} href={"/repos/" + r.id} className="repo-row">
+                <span className="repo-symbol"><Icon name="repository" size={22}/></span>
+                <div className="row-details"><strong><span>{r.owner} / </span>{r.name}</strong><small>{r.snapshot ? <><Icon name="commit" size={14}/>{r.snapshot.commit_sha.slice(0,7)} · {r.snapshot.file_count} {t.filesUnit} · {r.snapshot.pr_count ?? 0} PRs</> : t.noSnapshot}</small></div>
+                <Status value={r.status}/><Icon name="arrow" size={16}/>
+              </Link>)}
+              {filtered.length === 0 && <p className="notice">{vi ? "Chưa có kho nào khớp với từ khóa." : "No repositories match this filter."}</p>}
+            </div>;
+          }}</ReadView>
+        </section>
+        <aside className="pipeline"><h2><Icon name="branch" size={17}/>{vi ? "Quy trình lập chỉ mục" : "Indexing pipeline"}</h2>
+          <ol>{stages.map(([title, body]) => <li key={title}><strong>{title}</strong><p>{body}</p></li>)}</ol>
+        </aside>
+      </div>
+      <section id="about" className="about-section" aria-labelledby="about-heading">
+        <div className="about-heading">
+          <BrandMark />
+          <h2 id="about-heading">{t.introHeading}</h2>
         </div>
-
-        <ReadView read={repos}>
-          {(rows) =>
-            rows.length === 0 ? (
-              <div className="empty-library-card">
-                <div className="empty-icon-box">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                  </svg>
-                </div>
-                <h3>{t.emptyLibraryTitle}</h3>
-                <p>{t.emptyLibraryDesc}</p>
-              </div>
-            ) : (
-              <div className="repo-cards-grid">
-                {rows.map((repo) => (
-                  <Link key={repo.id} href={"/repos/" + repo.id} className="repo-card">
-                    <div className="repo-card-header">
-                      <div className="repo-title-wrapper">
-                        <span className="repo-gh-icon" aria-hidden="true">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-                          </svg>
-                        </span>
-                        <strong className="repo-name">
-                          <span className="repo-owner">{repo.owner}/</span>{repo.name}
-                        </strong>
-                      </div>
-                      <Status value={repo.status} />
-                    </div>
-
-                    <div className="repo-card-meta">
-                      {repo.snapshot ? (
-                        <>
-                          <span className="meta-pill">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                            </svg>
-                            {repo.snapshot.file_count} {t.filesUnit}
-                          </span>
-                          <span className="meta-pill">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="18" cy="18" r="3" />
-                              <circle cx="6" cy="6" r="3" />
-                              <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-                              <line x1="6" y1="9" x2="6" y2="21" />
-                            </svg>
-                            {repo.snapshot.pr_count ?? 0} PRs
-                          </span>
-                          <span className="meta-pill sha-pill">
-                            SHA {repo.snapshot.commit_sha.slice(0, 7)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="no-snap-text">{t.noSnapshot}</span>
-                      )}
-                    </div>
-
-                    <div className="repo-card-footer">
-                      <span className="open-action">
-                        {isVi ? "Xem phân tích" : "View Analysis"} →
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )
-          }
-        </ReadView>
-      </section>
-
-      {/* Website Introduction & Architecture Principles */}
-      <section id="about" className="about-section">
-        <div className="about-header">
-          <div className="about-tag">
-            <span className="badge-dot" />
-            <span>{isVi ? "Giới thiệu & Kiến trúc cốt lõi" : "Architecture & Principles"}</span>
-          </div>
-          <h2>{t.introHeading}</h2>
-          <p>{t.introSubhead}</p>
-        </div>
-
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-icon-box blue">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </div>
-            <h3>{t.feat1Title}</h3>
-            <p>{t.feat1Desc}</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon-box purple">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
-            </div>
-            <h3>{t.feat2Title}</h3>
-            <p>{t.feat2Desc}</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon-box green">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <polyline points="9 12 11 14 15 10" />
-              </svg>
-            </div>
-            <h3>{t.feat3Title}</h3>
-            <p>{t.feat3Desc}</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon-box amber">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            </div>
-            <h3>{t.feat4Title}</h3>
-            <p>{t.feat4Desc}</p>
-          </div>
-        </div>
-
-        {/* Ingestion Pipeline Architecture Flow */}
-        <div className="workflow-banner">
-          <div className="workflow-meta">
-            <h4>{isVi ? "Quy trình khảo cổ mã nguồn (Evidence Pipeline)" : "Evidence Ingestion Pipeline"}</h4>
-            <p>
-              {isVi
-                ? "An toàn tuyệt đối — Worker chỉ phân tích AST và metadata từ Git trong môi trường sandbox, không bao giờ thực thi mã nguồn lạ."
-                : "Zero code execution — Parser worker reads code and metadata safely without compiling or executing untrusted files."}
-            </p>
-          </div>
-          <div className="pipeline-steps">
-            <div className="pipeline-step">
-              <span className="step-num">1</span>
-              <span>Safe Git Clone</span>
-            </div>
-            <div className="step-arrow" aria-hidden="true">→</div>
-            <div className="pipeline-step">
-              <span className="step-num">2</span>
-              <span>AST Symbol Parse</span>
-            </div>
-            <div className="step-arrow" aria-hidden="true">→</div>
-            <div className="pipeline-step">
-              <span className="step-num">3</span>
-              <span>Chunk &amp; Vectors</span>
-            </div>
-            <div className="step-arrow" aria-hidden="true">→</div>
-            <div className="pipeline-step">
-              <span className="step-num">4</span>
-              <span>Dependency Graph</span>
-            </div>
-            <div className="step-arrow" aria-hidden="true">→</div>
-            <div className="pipeline-step">
-              <span className="step-num">5</span>
-              <span>Grounded Q&amp;A</span>
-            </div>
-          </div>
+        <div className="about-copy">
+          <p>{t.aboutPurpose}</p>
+          <p>{t.aboutDetails}</p>
         </div>
       </section>
-    </>
-  );
+    </div>
+  </>;
 }

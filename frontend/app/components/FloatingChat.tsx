@@ -34,6 +34,8 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   const isVi = locale === "vi";
   const shortSha = repo.snapshot?.commit_sha ? repo.snapshot.commit_sha.slice(0, 7) : "";
 
@@ -44,12 +46,20 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
     }
   }, [messages, busy, isOpen]);
 
-  // Focus input when opened
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 150);
-    }
+    if (isOpen) inputRef.current?.focus();
+    else if (wasOpen.current) triggerRef.current?.focus();
+    wasOpen.current = isOpen;
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onToggle(false);
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [isOpen, onToggle]);
 
   async function handleSend(qText?: string) {
     const textToSend = (qText || question).trim();
@@ -78,7 +88,8 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
-      setError(messageOf(err));
+      setError(messageOf(err, locale));
+      setQuestion(textToSend);
     } finally {
       setBusy(false);
     }
@@ -90,7 +101,7 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void handleSend();
     }
@@ -115,23 +126,25 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
         <button
           type="button"
           className="floating-chat-trigger"
+          ref={triggerRef}
+          aria-haspopup="dialog"
+          aria-label={isVi ? "Mở hỏi đáp mã nguồn" : "Open codebase chat"}
+          title={isVi ? "Hỏi đáp mã nguồn" : "Ask about this codebase"}
           onClick={() => onToggle(true)}
-          aria-label={isVi ? "Mở chat hỏi đáp mã nguồn" : "Open codebase Q&A chat"}
-          title={isVi ? "Hỏi đáp mã nguồn với bằng chứng AST" : "Grounded codebase Q&A"}
         >
-          <span className="trigger-icon" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </span>
-          <span className="trigger-text">{isVi ? "Hỏi đáp mã nguồn" : "Ask Codebase"}</span>
-          {shortSha && <span className="trigger-sha">{shortSha}</span>}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3.5c-5.1 0-8.8 3.4-8.8 8 0 2 .7 3.8 2 5.1l-.8 4.1 4.3-1.8c1 .4 2.1.6 3.3.6 5 0 8.8-3.4 8.8-8s-3.8-8-8.8-8Z"
+              stroke="currentColor" strokeWidth="1.85" strokeLinejoin="round"/>
+            <g fill="currentColor">
+              <circle cx="8" cy="11.6" r="1.1"/><circle cx="12" cy="11.6" r="1.1"/><circle cx="16" cy="11.6" r="1.1"/>
+            </g>
+          </svg>
         </button>
       )}
 
       {/* Floating Chat Box Window */}
       {isOpen && (
-        <div className="floating-chat-box" role="dialog" aria-modal="false" aria-label="Codebase Q&A">
+        <div className="floating-chat-box" role="dialog" aria-modal="false" aria-label={isVi ? "Hỏi đáp mã nguồn" : "Codebase Q&A"}>
           {/* Header */}
           <div className="chat-box-header">
             <div className="chat-header-title">
@@ -144,7 +157,7 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
                 <button
                   type="button"
                   className="chat-icon-btn"
-                  onClick={() => setMessages([])}
+                  disabled={busy} onClick={() => { setMessages([]); setError(""); }}
                   title={isVi ? "Xoá đoạn hội thoại" : "Clear conversation"}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -168,21 +181,11 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
           </div>
 
           {/* Messages Stream */}
-          <div className="chat-box-body" ref={scrollRef}>
+          <div className="chat-box-body" ref={scrollRef} role="log" aria-live="polite">
             {messages.length === 0 && (
               <div className="chat-welcome">
-                <div className="welcome-badge">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  </svg>
-                  <span>{isVi ? "Đối chiếu bằng chứng chính xác" : "Evidence-Grounded Intelligence"}</span>
-                </div>
-                <h4>{isVi ? "Hỏi bất kỳ điều gì về repo này" : "Ask anything about this repository"}</h4>
-                <p>
-                  {isVi
-                    ? "Mọi câu trả lời đều được kiểm chứng từ AST, ký hiệu mã và dòng code thực tế trong commit snapshot này."
-                    : "Answers are strictly grounded in verified AST symbols, files, and line citations from this immutable snapshot."}
-                </p>
+                <h3>{isVi ? "Bạn muốn tìm hiểu phần nào?" : "What would you like to trace?"}</h3>
+                <p>{isVi ? "Hỏi về tệp hoặc hàm trong phiên bản này. Mở trích dẫn để đọc các dòng mã liên quan." : "Ask about a file or function in this snapshot. Open a citation to read the relevant lines."}</p>
                 <div className="quick-prompts">
                   <small>{isVi ? "Gợi ý câu hỏi nhanh:" : "Suggested questions:"}</small>
                   <div className="prompts-list">
@@ -244,7 +247,7 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
                                 <span className="ev-idx">[E{idx + 1}]</span>
                                 <span className="ev-path">{ev.path.split("/").pop()}</span>
                                 <span className="ev-lines">L{ev.line_start}-{ev.line_end}</span>
-                                <span className="ev-score">★ {ev.score.toFixed(2)}</span>
+                                <span className="ev-score">{t.scoreLabel} {ev.score.toFixed(2)}</span>
                               </a>
                             ))}
                           </div>
@@ -273,9 +276,9 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
             )}
 
             {error && (
-              <div className="chat-error-notice">
+              <div className="chat-error-notice" role="alert">
                 <span>{error}</span>
-                <button type="button" onClick={() => setError("")}>
+                <button type="button" aria-label={isVi ? "Đóng thông báo" : "Dismiss error"} onClick={() => setError("")}>
                   ✕
                 </button>
               </div>
@@ -287,19 +290,20 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
             <div className="chat-input-wrapper">
               <textarea
                 ref={inputRef}
+                aria-label={t.askPromptLabel}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={isVi ? "Đặt câu hỏi về codebase (Enter để gửi)..." : "Ask about this codebase (Enter to send)..."}
                 rows={1}
                 maxLength={2000}
-                disabled={busy}
+                readOnly={busy}
               />
               <button
                 type="submit"
                 className="chat-send-btn"
                 disabled={busy || question.trim().length < 2}
-                aria-label="Send"
+                aria-label={isVi ? "Gửi câu hỏi" : "Send question"}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" />

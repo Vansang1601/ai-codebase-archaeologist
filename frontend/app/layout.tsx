@@ -31,7 +31,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <I18nProvider>
           <Header />
-          <main className="shell">{children}</main>
+          <main id="main-content" tabIndex={-1}>{children}</main>
         </I18nProvider>
       </body>
     </html>
