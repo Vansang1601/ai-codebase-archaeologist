@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type JobInfo, type Repo } from "../../../lib/api";
 import { useI18n } from "../../../lib/i18n";
-import { Ask, Files, Findings, Graph, Overview, PullRequests, Timeline } from "../../components/RepoPanels";
+import { Files, Findings, Graph, Overview, PullRequests, Timeline } from "../../components/RepoPanels";
+import FloatingChat from "../../components/FloatingChat";
 import { messageOf, Status } from "../../components/WorkspaceUI";
 
 function ongoing(status?: string) {
@@ -17,6 +18,7 @@ function Workspace({ id }: { id: string }) {
   const [repo, setRepo] = useState<Repo | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [tab, setTab] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
   const [revision, setRevision] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +26,6 @@ function Workspace({ id }: { id: string }) {
   const tabDefs = [
     { label: t.tabOverview, Component: Overview },
     { label: t.tabFiles, Component: Files },
-    { label: t.tabAsk, Component: Ask },
     { label: t.tabTimeline, Component: Timeline },
     { label: t.tabGraph, Component: Graph },
     { label: t.tabFindings, Component: Findings },
@@ -136,19 +137,33 @@ function Workspace({ id }: { id: string }) {
 
       {repo.snapshot ? (
         <>
-          <nav aria-label="Analysis Sections" className="sections">
-            {tabDefs.map((def, i) => (
-              <button
-                key={def.label}
-                className="section-link"
-                aria-current={i === tab ? "page" : undefined}
-                onClick={() => setTab(i)}
-              >
-                {def.label}
-              </button>
-            ))}
-          </nav>
+          <div className="sections-container">
+            <nav aria-label="Analysis Sections" className="sections">
+              {tabDefs.map((def, i) => (
+                <button
+                  key={def.label}
+                  className="section-link"
+                  aria-current={i === tab ? "page" : undefined}
+                  onClick={() => setTab(i)}
+                >
+                  {def.label}
+                </button>
+              ))}
+            </nav>
+            <button
+              type="button"
+              className="section-ask-pill"
+              onClick={() => setChatOpen(true)}
+              title={t.tabAsk}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>{t.tabAsk}</span>
+            </button>
+          </div>
           <ActivePanel key={repo.snapshot.id} repo={repo} />
+          <FloatingChat repo={repo} isOpen={chatOpen} onToggle={setChatOpen} />
         </>
       ) : (
         <div className="panel">

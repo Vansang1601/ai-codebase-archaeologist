@@ -7,35 +7,74 @@ import { api } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { messageOf, ReadView, Status, useRead } from "./components/WorkspaceUI";
 
-function SnapshotArt() {
-  const { t } = useI18n();
+function ArchitecturePreview() {
+  const { locale } = useI18n();
+  const isVi = locale === "vi";
+
   return (
-    <figure className="art" role="img" aria-label="Illustration of three snapshot layers: source code, dependencies, and evidence">
-      <div className="art-grid" />
-      <div className="sculpture" aria-hidden="true">
-        <div className="plate floor" />
-        <div className="plate basal" />
-        <div className="plate mesh" />
-        <div className="plate trace">
-          <i /><i /><i />
-        </div>
-        <div className="plate sheet">
-          <div className="sheet-head">
-            <b /><b /><b />
+    <div className="hero-preview" aria-hidden="true">
+      <div className="preview-window">
+        <div className="preview-window-bar">
+          <div className="window-dots">
+            <span className="dot red" />
+            <span className="dot yellow" />
+            <span className="dot green" />
           </div>
-          <div className="sheet-code">
-            {[62, 78, 48, 66, 39, 55].map((w, i) => (
-              <i key={w} style={{ width: w + "%", marginLeft: i % 3 === 0 ? 0 : "10%" }} />
-            ))}
+          <span className="window-title">archaeologist // AST & Dependency Graph</span>
+          <span className="window-tag">Snapshot SHA</span>
+        </div>
+        <div className="preview-body">
+          <div className="preview-meta-row">
+            <div className="preview-badge success">
+              <span className="pulse-indicator" />
+              <span>{isVi ? "Xác thực AST hoàn tất" : "AST Verified"}</span>
+            </div>
+            <div className="preview-badge neutral">
+              <span>{isVi ? "Chỉ mục: 160+ chunks" : "Indexed: 160+ chunks"}</span>
+            </div>
+            <div className="preview-badge neutral">
+              <span>{isVi ? "Ảnh hưởng: 2 hops" : "Blast radius: 2 hops"}</span>
+            </div>
+          </div>
+          <div className="preview-code-block">
+            <div className="code-line">
+              <span className="ln">01</span>
+              <span className="kw">from</span> <span className="mod">app.retrieval</span> <span className="kw">import</span> <span className="fn">hybrid_retrieve</span>
+            </div>
+            <div className="code-line">
+              <span className="ln">02</span>
+              <span className="kw">from</span> <span className="mod">worker.parser</span> <span className="kw">import</span> <span className="fn">extract_symbols</span>
+            </div>
+            <div className="code-line">
+              <span className="ln">03</span>
+              <span className="comm"># Evidence-first: fail-closed if confidence &lt; 0.08</span>
+            </div>
+            <div className="code-line">
+              <span className="ln">04</span>
+              <span className="kw">async def</span> <span className="fn">audit_snapshot</span>(repo_id: <span className="typ">str</span>, sha: <span className="typ">str</span>):
+            </div>
+            <div className="code-line">
+              <span className="ln">05</span>
+              <span className="tab">&nbsp;&nbsp;</span>evidence = <span className="kw">await</span> hybrid_retrieve(repo_id, sha)
+            </div>
+            <div className="code-line">
+              <span className="ln">06</span>
+              <span className="tab">&nbsp;&nbsp;</span><span className="kw">return</span> {"{"} grounded: <span className="bool">True</span>, citations: len(evidence) {"}"}
+            </div>
+          </div>
+          <div className="preview-audit-summary">
+            <div className="audit-item">
+              <span className="audit-label">{isVi ? "Phụ thuộc nội bộ" : "Resolved Deps"}</span>
+              <span className="audit-val">main.py ➔ auth ➔ models</span>
+            </div>
+            <div className="audit-item">
+              <span className="audit-label">{isVi ? "Nợ kỹ thuật" : "Tech Debt"}</span>
+              <span className="audit-val green">0 Circular Cycles</span>
+            </div>
           </div>
         </div>
       </div>
-      <figcaption>
-        <span>{t.artSource}</span>
-        <span>{t.artDeps}</span>
-        <span>{t.artEvidence}</span>
-      </figcaption>
-    </figure>
+    </div>
   );
 }
 
@@ -100,7 +139,7 @@ export default function HomePage() {
             </div>
           )}
         </div>
-        <SnapshotArt />
+        <ArchitecturePreview />
       </section>
 
       <section id="library" className="library">
