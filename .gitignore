@@ -22,4 +22,7 @@ workspace/repos/
 benchmarks/runs/*.json
 benchmarks/runs/*.csv
 !benchmarks/runs/.gitkeep
-~$*.docx
+
+# Office temporary files
+~$*
+*.files/

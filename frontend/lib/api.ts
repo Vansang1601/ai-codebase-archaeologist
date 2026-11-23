@@ -1,5 +1,21 @@
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^| )session_token=([^;]+)"));
+  return match ? match[2] : null;
+}
+
+export function setToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) {
+    // Secure session cookie - strictly not stored in localStorage
+    document.cookie = `session_token=${token}; path=/; max-age=604800; SameSite=Lax`;
+  } else {
+    document.cookie = "session_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  }
+}
+
 export interface Snapshot {
   id: string;
   commit_sha: string;
@@ -9,6 +25,7 @@ export interface Snapshot {
   symbol_count: number;
   dependency_count: number;
   chunk_count: number;
+  pr_count?: number;
   created_at?: string;
 }
 
@@ -29,6 +46,9 @@ export interface JobInfo {
   phase: string;
   progress: number;
   snapshot_id?: string | null;
+  pr_status?: string | null;
+  pr_count?: number;
+  skipped_files_json?: string | null;
   error?: string | null;
   created_at: string;
   updated_at: string;
@@ -120,11 +140,26 @@ export interface FindingItem {
   meta: Record<string, any>;
 }
 
+export interface PullRequest {
+  id: string;
+  number: number;
+  title: string;
+  state: string;
+  author_name: string;
+  head_sha?: string | null;
+  base_branch?: string | null;
+  merged_at?: string | null;
+  closed_at?: string | null;
+  created_at_gh?: string | null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {})
     },
     cache: "no-store"
@@ -184,7 +219,36 @@ export const api = {
 
   findings: (id: string) => request<FindingItem[]>(`/api/repos/${id}/findings`),
 
-  authStatus: () => request<{ enabled: boolean; client_id: string | null }>("/api/auth/status"),
+  pulls: (id: string) => request<PullRequest[]>(`/api/repos/${id}/pulls`),
 
-  authLoginUrl: `${API}/api/auth/login`,
+  authStatus: () => request<{
+    auth_configured?: boolean;
+    github_oauth_configured?: boolean;
+    google_oauth_configured?: boolean;
+    github_app_configured?: boolean;
+    enabled?: boolean;
+    allow_dev_login?: boolean;
+    message?: string;
+  }>("/api/auth/status"),
+
+  authLoginUrl: `${API}/api/auth/oauth/github/url`,
+
+  login: (email: string) =>
+    request<{ access_token: string; user: any }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    }),
+
+  register: (email: string, name?: string) =>
+    request<{ access_token: string; user: any }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, name })
+    }),
+
+  me: () => request<any>("/api/auth/me"),
+
+  logout: () =>
+    request<any>("/api/auth/logout", {
+      method: "POST"
+    }),
 };

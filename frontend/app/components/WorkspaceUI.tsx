@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useI18n } from "../../lib/i18n";
 
 export function messageOf(error: unknown) {
   if (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)) {
-    return "Chưa kết nối được API. Kiểm tra backend đang chạy rồi thử lại.";
+    return "Cannot connect to backend API. Please verify backend service is running.";
   }
-  return error instanceof Error ? error.message : "Không tải được dữ liệu. Vui lòng thử lại.";
+  return error instanceof Error ? error.message : "Failed to load data. Please retry.";
 }
 
 type ReadState<T> =
@@ -33,23 +34,40 @@ export function ReadView<T>({ read, children }: {
   read: ReturnType<typeof useRead<T>>;
   children: (data: T) => ReactNode;
 }) {
+  const { locale } = useI18n();
+  const retryLabel = locale === "vi" ? "Thử lại" : "Retry";
+  const loadingLabel = locale === "vi" ? "Đang tải dữ liệu…" : "Loading data…";
+
   if (read.state.status === "error") {
-    return <div className="notice error" role="alert">{read.state.message} <button className="text-action" onClick={read.retry}>Thử lại</button></div>;
+    return (
+      <div className="notice error" role="alert">
+        {read.state.message}{" "}
+        <button className="text-action" onClick={read.retry}>
+          {retryLabel}
+        </button>
+      </div>
+    );
   }
-  if (read.state.status === "loading") return <p className="notice" role="status">Đang tải dữ liệu…</p>;
+  if (read.state.status === "loading") {
+    return (
+      <p className="notice" role="status">
+        {loadingLabel}
+      </p>
+    );
+  }
   return <>{children(read.state.data)}</>;
 }
 
-const labels: Record<string, string> = {
-  registered: "Đã thêm", queued: "Đang chờ", running: "Đang phân tích",
-  ready: "Sẵn sàng", completed: "Hoàn tất", failed: "Thất bại",
-  high: "Mức cao", medium: "Mức vừa", info: "Thông tin"
-};
-
 export function Status({ value }: { value: string }) {
-  return <span className={'status ' + value}>{labels[value] || value}</span>;
+  const { t } = useI18n();
+  const label = (t.status as Record<string, string>)[value] || value;
+  return <span className={"status " + value}>{label}</span>;
 }
 
 export function BrandMark() {
-  return <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>;
+  return (
+    <span className="brand-mark" aria-hidden="true">
+      <i /><i /><i />
+    </span>
+  );
 }
