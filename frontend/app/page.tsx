@@ -290,6 +290,108 @@ export default function HomePage() {
           }
         </ReadView>
       </section>
+
+      {/* Website Introduction & Architecture Principles */}
+      <section id="about" className="about-section">
+        <div className="about-header">
+          <div className="about-tag">
+            <span className="badge-dot" />
+            <span>{isVi ? "Giới thiệu & Kiến trúc cốt lõi" : "Architecture & Principles"}</span>
+          </div>
+          <h2>{t.introHeading}</h2>
+          <p>{t.introSubhead}</p>
+        </div>
+
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon-box blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <h3>{t.feat1Title}</h3>
+            <p>{t.feat1Desc}</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-box purple">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </div>
+            <h3>{t.feat2Title}</h3>
+            <p>{t.feat2Desc}</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-box green">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <polyline points="9 12 11 14 15 10" />
+              </svg>
+            </div>
+            <h3>{t.feat3Title}</h3>
+            <p>{t.feat3Desc}</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-box amber">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <h3>{t.feat4Title}</h3>
+            <p>{t.feat4Desc}</p>
+          </div>
+        </div>
+
+        {/* Ingestion Pipeline Architecture Flow */}
+        <div className="workflow-banner">
+          <div className="workflow-meta">
+            <h4>{isVi ? "Quy trình khảo cổ mã nguồn (Evidence Pipeline)" : "Evidence Ingestion Pipeline"}</h4>
+            <p>
+              {isVi
+                ? "An toàn tuyệt đối — Worker chỉ phân tích AST và metadata từ Git trong môi trường sandbox, không bao giờ thực thi mã nguồn lạ."
+                : "Zero code execution — Parser worker reads code and metadata safely without compiling or executing untrusted files."}
+            </p>
+          </div>
+          <div className="pipeline-steps">
+            <div className="pipeline-step">
+              <span className="step-num">1</span>
+              <span>Safe Git Clone</span>
+            </div>
+            <div className="step-arrow" aria-hidden="true">→</div>
+            <div className="pipeline-step">
+              <span className="step-num">2</span>
+              <span>AST Symbol Parse</span>
+            </div>
+            <div className="step-arrow" aria-hidden="true">→</div>
+            <div className="pipeline-step">
+              <span className="step-num">3</span>
+              <span>Chunk &amp; Vectors</span>
+            </div>
+            <div className="step-arrow" aria-hidden="true">→</div>
+            <div className="pipeline-step">
+              <span className="step-num">4</span>
+              <span>Dependency Graph</span>
+            </div>
+            <div className="step-arrow" aria-hidden="true">→</div>
+            <div className="pipeline-step">
+              <span className="step-num">5</span>
+              <span>Grounded Q&amp;A</span>
+            </div>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
