@@ -1,7 +1,9 @@
 from __future__ import annotations
+import hashlib
+import hmac
 import json
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -9,7 +11,7 @@ from typing import Optional
 
 from .config import get_settings
 from .database import Base, engine, get_db
-from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitRecord, Finding, PullRequest
+from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitRecord, Finding, PullRequest, Chunk
 from .schemas import RepositoryCreate, SyncRequest, QuestionRequest, ImpactRequest, AnswerOut, EvidenceOut
 from .security import canonicalize_github_url, RepositoryUrlError
 from .retrieval import retrieve, evidence_url, latest_snapshot
@@ -100,6 +102,31 @@ def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db), 
     return {"id": repo.id, "owner": repo.owner, "name": repo.name, "canonical_url": repo.canonical_url, "status": repo.status}
 
 
+def _queue_repo_sync(db: Session, repo: Repository, requested_ref: str | None = None) -> AnalysisJob:
+    """Return an active queued/running job or enqueue a new analysis job for the repository."""
+    active = db.scalar(
+        select(AnalysisJob).where(
+            AnalysisJob.repository_id == repo.id,
+            AnalysisJob.status.in_(["queued", "running"]),
+        ).order_by(AnalysisJob.created_at.desc()).limit(1)
+    )
+    if active:
+        return active
+    job = AnalysisJob(
+        repository_id=repo.id,
+        requested_ref=requested_ref,
+        status="queued",
+        phase="queued",
+        progress=0,
+        tenant_id=repo.tenant_id,
+    )
+    repo.status = "queued"
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
 @app.post("/api/repos/{repo_id}/sync")
 def sync_repository(repo_id: str, payload: SyncRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
@@ -107,21 +134,7 @@ def sync_repository(repo_id: str, payload: SyncRequest, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    active = db.scalar(
-        select(AnalysisJob).where(
-            AnalysisJob.repository_id == repo_id,
-            AnalysisJob.status.in_(["queued", "running"]),
-        ).order_by(AnalysisJob.created_at.desc()).limit(1)
-    )
-    if active:
-        return _job_dict(active)
-    job = AnalysisJob(repository_id=repo_id, requested_ref=payload.ref, status="queued", phase="queued", progress=0,
-                      tenant_id=repo.tenant_id)
-    repo.status = "queued"
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    return _job_dict(job)
+    return _job_dict(_queue_repo_sync(db, repo, payload.ref))
 
 
 @app.get("/api/jobs/{job_id}")
@@ -386,4 +399,100 @@ def _job_dict(job: AnalysisJob):
         "pr_status": job.pr_status,
         "pr_count": job.pr_count,
         "created_at": job.created_at, "updated_at": job.updated_at,
+    }
+
+
+def _verify_github_signature(raw_body: bytes, signature_header: str | None, secret: str) -> bool:
+    """Verify GitHub X-Hub-Signature-256 HMAC header in constant time."""
+    if not signature_header or not signature_header.startswith("sha256="):
+        return False
+    expected = "sha256=" + hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+
+@app.post("/api/webhooks/github")
+async def github_webhook(request: Request, db: Session = Depends(get_db)):
+    """Receive GitHub push / pull_request webhooks and enqueue re-analysis for tracked repos."""
+    raw_body = await request.body()
+    if settings.github_webhook_secret:
+        sig = request.headers.get("x-hub-signature-256")
+        if not _verify_github_signature(raw_body, sig, settings.github_webhook_secret):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    event = request.headers.get("x-github-event", "ping")
+    if event == "ping":
+        return {"status": "pong"}
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    if event not in ("push", "pull_request"):
+        return {"status": "ignored", "event": event, "triggered_jobs": []}
+
+    repo_info = payload.get("repository") or {}
+    full_name = (repo_info.get("full_name") or "").strip()
+    if "/" not in full_name:
+        return {"status": "ignored", "event": event, "triggered_jobs": []}
+
+    owner, name = full_name.split("/", 1)
+    ref = payload.get("ref")
+    branch = ref.removeprefix("refs/heads/") if isinstance(ref, str) and ref.startswith("refs/heads/") else None
+
+    matching_repos = db.scalars(
+        select(Repository).where(
+            func.lower(Repository.owner) == owner.lower(),
+            func.lower(Repository.name) == name.lower(),
+        )
+    ).all()
+
+    triggered = [_job_dict(_queue_repo_sync(db, repo, branch)) for repo in matching_repos]
+    return {"status": "ok", "event": event, "triggered_jobs": triggered}
+
+
+@app.get("/api/metrics")
+def get_metrics(db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    """Return aggregate indexing and quality metrics for M6 observability."""
+    repo_filter = Repository.id.isnot(None)
+    if user is not None:
+        tenant_id = get_user_tenant_id(user)
+        repo_filter = (Repository.tenant_id == tenant_id) | (Repository.tenant_id == "00000000-0000-0000-0000-000000000001")
+
+    repo_ids = db.scalars(select(Repository.id).where(repo_filter)).all()
+    if not repo_ids:
+        return {
+            "repositories_total": 0,
+            "snapshots_completed": 0,
+            "jobs": {"queued": 0, "running": 0, "completed": 0, "failed": 0},
+            "indexed": {"files": 0, "symbols": 0, "dependencies": 0, "chunks": 0, "findings": 0, "pull_requests": 0},
+            "llm_configured": bool(settings.llm_base_url and settings.llm_api_key and settings.llm_model),
+        }
+
+    job_rows = db.execute(
+        select(AnalysisJob.status, func.count(AnalysisJob.id))
+        .where(AnalysisJob.repository_id.in_(repo_ids))
+        .group_by(AnalysisJob.status)
+    ).all()
+    job_counts = {"queued": 0, "running": 0, "completed": 0, "failed": 0}
+    for status_name, count_val in job_rows:
+        if status_name in job_counts:
+            job_counts[status_name] = int(count_val)
+
+    snapshot_ids = db.scalars(
+        select(Snapshot.id).where(Snapshot.repository_id.in_(repo_ids), Snapshot.status == "completed")
+    ).all()
+    return {
+        "repositories_total": len(repo_ids),
+        "snapshots_completed": len(snapshot_ids),
+        "jobs": job_counts,
+        "indexed": {
+            "files": int(db.scalar(select(func.count(CodeFile.id)).where(CodeFile.snapshot_id.in_(snapshot_ids))) or 0) if snapshot_ids else 0,
+            "symbols": int(db.scalar(select(func.count(Symbol.id)).where(Symbol.snapshot_id.in_(snapshot_ids))) or 0) if snapshot_ids else 0,
+            "dependencies": int(db.scalar(select(func.count(Dependency.id)).where(Dependency.snapshot_id.in_(snapshot_ids))) or 0) if snapshot_ids else 0,
+            "chunks": int(db.scalar(select(func.count(Chunk.id)).where(Chunk.snapshot_id.in_(snapshot_ids))) or 0) if snapshot_ids else 0,
+            "findings": int(db.scalar(select(func.count(Finding.id)).where(Finding.snapshot_id.in_(snapshot_ids))) or 0) if snapshot_ids else 0,
+            "pull_requests": int(db.scalar(select(func.count(PullRequest.id)).where(PullRequest.repository_id.in_(repo_ids))) or 0),
+        },
+        "llm_configured": bool(settings.llm_base_url and settings.llm_api_key and settings.llm_model),
     }
