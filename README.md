@@ -49,7 +49,7 @@ docker compose up -d --build
 
 Home opens with the repository analysis form. The About section (`/#about`) below it explains the architecture, features and source citations. The public guide is at `/guide`. After sign-in, `/library` lists the repositories available to the workspace. The palette control next to the theme and language controls saves a color choice in the current browser.
 
-Set `SUPPORT_EMAIL` and `SUPPORT_PHONE` in the root `.env` to publish the team's contact details at `/support`. Apply contact changes with `docker compose up -d frontend`.
+Set `SUPPORT_EMAIL`, `SUPPORT_PHONE` and `SUPPORT_GITHUB` (repository URL, used for the issue link) in the root `.env` to publish the team's contact details at `/support`. Team member names are edited in the `TEAM` list at the top of `frontend/app/support/SupportContacts.tsx`. Apply contact changes with `docker compose up -d frontend`.
 
 Then open:
 
