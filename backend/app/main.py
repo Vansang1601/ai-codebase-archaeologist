@@ -235,7 +235,8 @@ def ask_question(repo_id: str, payload: QuestionRequest, db: Session = Depends(g
         "score": x.score,
     } for x in kept]
     try:
-        answer, warnings = synthesize(payload.question, blocks)
+        history_turns = [{"role": h.role, "content": h.content} for h in payload.history]
+        answer, warnings = synthesize(payload.question, blocks, history=history_turns)
     except Exception as exc:
         answer = "LLM không khả dụng; trả về evidence đã truy xuất."
         warnings = [f"LLM call failed: {type(exc).__name__}"]

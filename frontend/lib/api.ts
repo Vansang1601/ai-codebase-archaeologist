@@ -221,10 +221,14 @@ export const api = {
   file: (id: string, path: string) =>
     request<FileDetail>(`/api/repos/${id}/file?path=${encodeURIComponent(path)}`),
 
-  ask: (id: string, question: string) =>
+  ask: (
+    id: string,
+    question: string,
+    history?: Array<{ role: "user" | "assistant"; content: string }>
+  ) =>
     request<AskResult>(`/api/repos/${id}/questions`, {
       method: "POST",
-      body: JSON.stringify({ question, top_k: 5 })
+      body: JSON.stringify({ question, top_k: 5, history: history || [] })
     }),
 
   timeline: (id: string) => request<TimelineCommit[]>(`/api/repos/${id}/timeline?limit=100`),

@@ -9,7 +9,11 @@ If evidence is insufficient or ambiguous, say so explicitly. Do not invent files
 Keep claims tied to evidence identifiers like [E1], [E2]."""
 
 
-def synthesize(question: str, evidence_blocks: list[dict]) -> tuple[str, list[str]]:
+def synthesize(
+    question: str,
+    evidence_blocks: list[dict],
+    history: list[dict] | None = None,
+) -> tuple[str, list[str]]:
     settings = get_settings()
     if not settings.llm_base_url or not settings.llm_api_key or not settings.llm_model:
         lines = ["Chưa cấu hình LLM; hệ thống đang chạy ở chế độ evidence-only."]
@@ -25,15 +29,18 @@ def synthesize(question: str, evidence_blocks: list[dict]) -> tuple[str, list[st
             f"--- BEGIN UNTRUSTED EVIDENCE ---\n{e['content']}\n--- END UNTRUSTED EVIDENCE ---"
         )
     user_prompt = f"Question: {question}\n\nEvidence:\n\n" + "\n\n".join(context)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for turn in (history or [])[-6:]:
+        if turn.get("role") in ("user", "assistant") and turn.get("content"):
+            messages.append({"role": turn["role"], "content": str(turn["content"])[:2000]})
+    messages.append({"role": "user", "content": user_prompt})
+
     base = settings.llm_base_url.rstrip("/")
     url = base if base.endswith("/chat/completions") else base + "/chat/completions"
     headers = {"Authorization": f"Bearer {settings.llm_api_key}", "Content-Type": "application/json"}
     payload = {
         "model": settings.llm_model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
+        "messages": messages,
         "temperature": 0.1,
     }
     with httpx.Client(timeout=settings.llm_timeout_seconds, follow_redirects=False) as client:

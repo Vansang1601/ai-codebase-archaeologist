@@ -72,13 +72,18 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
+    const history = messages.slice(-6).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     setMessages((prev) => [...prev, userMsg]);
     setQuestion("");
     setBusy(true);
     setError("");
 
     try {
-      const res = await api.ask(repo.id, textToSend);
+      const res = await api.ask(repo.id, textToSend, history);
       const assistantMsg: Message = {
         id: "a-" + Date.now(),
         role: "assistant",

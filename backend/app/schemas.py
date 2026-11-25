@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl
 
 
@@ -11,9 +12,15 @@ class SyncRequest(BaseModel):
     ref: str | None = None
 
 
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class QuestionRequest(BaseModel):
     question: str = Field(min_length=2, max_length=2000)
     top_k: int = Field(default=5, ge=1, le=12)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=10)
 
 
 class ImpactRequest(BaseModel):

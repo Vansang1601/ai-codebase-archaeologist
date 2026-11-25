@@ -89,3 +89,49 @@ def test_webhook_push_queues_sync_job(monkeypatch):
     assert data["triggered_jobs"][0]["repository_id"] == repo_id
     assert data["triggered_jobs"][0]["requested_ref"] == "main"
     assert data["triggered_jobs"][0]["status"] == "queued"
+
+
+def test_llm_synthesize_includes_multi_turn_history(monkeypatch):
+    from app import llm
+    captured = {}
+
+    class FakeResp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Grounded answer [E1]"}}]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            captured["payload"] = json
+            return FakeResp()
+
+    s = llm.get_settings()
+    monkeypatch.setattr(s, "llm_base_url", "https://example.com/v1")
+    monkeypatch.setattr(s, "llm_api_key", "sk-test")
+    monkeypatch.setattr(s, "llm_model", "test-model")
+    monkeypatch.setattr(llm.httpx, "Client", FakeClient)
+
+    answer, warnings = llm.synthesize(
+        "Where is it called?",
+        [{"path": "app.py", "line_start": 1, "line_end": 5, "commit_sha": "abc123", "content": "def foo(): pass"}],
+        history=[
+            {"role": "user", "content": "What does foo do?"},
+            {"role": "assistant", "content": "foo initializes auth."},
+        ],
+    )
+    assert answer == "Grounded answer [E1]"
+    assert warnings == []
+    roles = [m["role"] for m in captured["payload"]["messages"]]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert captured["payload"]["messages"][1]["content"] == "What does foo do?"
