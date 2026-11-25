@@ -103,6 +103,8 @@ def get_oauth_url(provider: str, redirect_uri: str | None = Query(default=None))
     settings = get_settings()
     state = secrets.token_urlsafe(16)
 
+    callback_url = redirect_uri or f"http://localhost:8000/api/auth/oauth/{provider}/callback"
+
     if provider == "github":
         if not settings.auth_github_id or not settings.auth_github_secret:
             raise HTTPException(
@@ -113,9 +115,8 @@ def get_oauth_url(provider: str, redirect_uri: str | None = Query(default=None))
             "client_id": settings.auth_github_id,
             "scope": "read:user user:email",
             "state": state,
+            "redirect_uri": callback_url,
         }
-        if redirect_uri:
-            params["redirect_uri"] = redirect_uri
         return {
             "provider": "github",
             "url": f"https://github.com/login/oauth/authorize?{urlencode(params)}",
@@ -134,9 +135,8 @@ def get_oauth_url(provider: str, redirect_uri: str | None = Query(default=None))
             "scope": "openid email profile",
             "state": state,
             "access_type": "online",
+            "redirect_uri": callback_url,
         }
-        if redirect_uri:
-            params["redirect_uri"] = redirect_uri
         return {
             "provider": "google",
             "url": f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}",
@@ -499,6 +499,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=token, user_id=user.id, tenant_id=membership.tenant_id)
 
 
+class UpdateProfileRequest(BaseModel):
+    name: str | None = None
+    preferred_locale: str | None = None
+
+
 # ------------------------------------------------------------------
 # POST /api/auth/logout - end session
 # ------------------------------------------------------------------
@@ -511,16 +516,54 @@ def logout(user: User = Depends(get_current_user)):
 # GET /api/auth/me - get current user info
 # ------------------------------------------------------------------
 @router.get("/me")
-def me(user: User = Depends(get_current_user)):
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     tenant_id = get_user_tenant_id(user)
+    tenant = db.scalar(select(Tenant).where(Tenant.id == tenant_id)) if tenant_id else None
+    membership = (
+        db.scalar(select(TenantMember).where(TenantMember.tenant_id == tenant_id, TenantMember.user_id == user.id))
+        if tenant_id else None
+    )
+    accounts = db.scalars(select(AuthAccount).where(AuthAccount.user_id == user.id)).all()
+    installations = (
+        db.scalars(select(GitHubInstallation).where(GitHubInstallation.tenant_id == tenant_id)).all()
+        if tenant_id else []
+    )
     return {
         "user_id": user.id,
         "email": user.email,
         "name": user.name,
         "avatar_url": user.avatar_url,
         "preferred_locale": user.preferred_locale,
+        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
         "tenant_id": tenant_id,
+        "workspace_name": tenant.name if tenant else None,
+        "role": membership.role if membership else "member",
+        "accounts": [
+            {
+                "provider": a.provider,
+                "provider_account_id": a.provider_account_id,
+                "created_at": a.created_at.isoformat() if getattr(a, "created_at", None) else None,
+            }
+            for a in accounts
+        ],
+        "github_installations_count": len(installations),
     }
+
+
+@router.patch("/me")
+def update_profile(
+    payload: UpdateProfileRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    get_user_tenant_id(user)
+    if payload.name is not None:
+        user.name = payload.name.strip() or None
+    if payload.preferred_locale is not None and payload.preferred_locale in ("en", "vi"):
+        user.preferred_locale = payload.preferred_locale
+    db.commit()
+    db.refresh(user)
+    return {"status": "ok", "user_id": user.id, "name": user.name, "preferred_locale": user.preferred_locale}
 
 
 # ------------------------------------------------------------------

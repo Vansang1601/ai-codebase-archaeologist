@@ -319,3 +319,81 @@ pre,code,.mono { font-family: var(--mono); }
   .account-link svg,.language svg { display: none; }
 }
 #main-content:focus { outline: 0; }
+
+/* Profile Page Styles */
+.profile-page { padding-block: 30px 60px; }
+.profile-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 0; gap: 12px; }
+.profile-top-nav { margin-bottom: 20px; }
+.profile-hero { margin-bottom: 24px; padding: clamp(20px, 3vw, 36px); }
+.profile-hero-content { display: flex; align-items: center; gap: 24px; }
+.profile-avatar-wrap { flex-shrink: 0; }
+.profile-avatar-img { width: 68px; height: 68px; border-radius: 50%; border: 2px solid var(--lime); object-fit: cover; }
+.profile-avatar-fallback { width: 68px; height: 68px; border-radius: 50%; background: var(--tint); color: var(--green); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 22px; font-family: var(--mono); border: 2px solid var(--lime); }
+.profile-hero-meta { min-width: 0; flex: 1; }
+.profile-hero-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.profile-hero-title-row h1 { font-size: clamp(22px, 2.5vw, 30px); font-weight: 650; }
+.profile-email { font-size: 14px; margin-bottom: 6px; }
+.profile-joined { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-family: var(--mono); }
+
+.role-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; padding: 3px 9px; border-radius: 999px; }
+.role-badge.owner { background: var(--tint); color: var(--green); border: 1px solid var(--lime); }
+.role-badge.member { background: var(--well); color: var(--muted); border: 1px solid var(--line); }
+
+.profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.profile-card { display: flex; flex-direction: column; gap: 18px; }
+.profile-card-header h2 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.profile-card-header p { font-size: 13px; }
+
+.profile-form { display: grid; gap: 14px; }
+.form-group { display: grid; gap: 6px; }
+.form-group label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.form-select { width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; font-size: 14px; }
+.input-with-badge { position: relative; display: flex; align-items: center; }
+.input-readonly { background: var(--well) !important; color: var(--muted); cursor: not-allowed; padding-right: 100px; }
+.badge-verified { position: absolute; right: 10px; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--green); background: var(--tint); padding: 2px 7px; border-radius: 4px; }
+
+.profile-info-list { display: grid; gap: 14px; }
+.profile-info-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.profile-info-row:last-child { border-bottom: none; padding-bottom: 0; }
+.info-label { font-size: 13px; color: var(--muted); }
+.info-value { font-size: 13px; text-align: right; }
+.font-semibold { font-weight: 600; }
+
+.tenant-id-box { display: flex; align-items: center; gap: 6px; }
+.tenant-id-code { font-family: var(--mono); font-size: 12px; background: var(--well); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--line); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-btn { border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; font-size: 12px; gap: 4px; color: var(--text); }
+.copy-btn:hover { background: var(--well); }
+.copy-label { font-size: 11px; font-weight: 550; }
+
+.accounts-list { display: grid; gap: 12px; }
+.account-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; background: var(--well); border: 1px solid var(--line); border-radius: 8px; }
+.account-item-info { display: flex; align-items: center; gap: 12px; }
+.provider-icon { width: 32px; height: 32px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.provider-icon.github-icon { background: #24292e; color: #fff; }
+.provider-icon.google-icon { background: #4285f4; color: #fff; font-family: var(--mono); }
+.provider-name { font-weight: 600; font-size: 14px; }
+.provider-desc { font-size: 12px; }
+
+.badge-connected { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--green); background: var(--tint); border: 1px solid var(--lime); padding: 4px 10px; border-radius: 999px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; }
+.status-dot.green { background: #55a22d; box-shadow: 0 0 6px #55a22d88; }
+
+.security-box { display: grid; gap: 12px; }
+.security-status-row { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--text); }
+.security-note { font-size: 12px; line-height: 1.5; }
+.security-action { display: flex; align-items: center; gap: 14px; margin-top: 6px; flex-wrap: wrap; }
+.danger-link { border-color: #e59080 !important; color: #c4321d !important; }
+.danger-link:hover { background: #fdf2f0 !important; }
+:root.dark .danger-link { border-color: #733a30 !important; color: #ff9d8c !important; }
+:root.dark .danger-link:hover { background: #351e1a !important; }
+
+.avatar-img-sm { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+.account-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-user.active { border-color: var(--green); background: var(--well); }
+
+@media (max-width: 768px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-hero-content { flex-direction: column; text-align: center; }
+  .profile-hero-title-row { justify-content: center; }
+  .profile-joined { justify-content: center; }
+}

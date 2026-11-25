@@ -128,6 +128,26 @@ export interface ImpactResult {
   }>;
 }
 
+export interface UserAccount {
+  provider: string;
+  provider_account_id: string;
+  created_at?: string | null;
+}
+
+export interface UserProfile {
+  user_id: string;
+  email: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  preferred_locale?: string;
+  created_at?: string | null;
+  tenant_id?: string | null;
+  workspace_name?: string | null;
+  role?: string;
+  accounts?: UserAccount[];
+  github_installations_count?: number;
+}
+
 export interface FindingItem {
   id: string;
   kind: string;
@@ -247,7 +267,13 @@ export const api = {
       body: JSON.stringify({ email, name })
     }),
 
-  me: () => request<any>("/api/auth/me"),
+  me: () => request<UserProfile>("/api/auth/me"),
+
+  updateProfile: (data: { name?: string; preferred_locale?: string }) =>
+    request<{ status: string; user_id: string; name?: string; preferred_locale?: string }>("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
   logout: () =>
     request<any>("/api/auth/logout", {

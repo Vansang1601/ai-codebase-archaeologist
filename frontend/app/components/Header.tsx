@@ -12,6 +12,7 @@ export default function Header() {
   const { locale, setLocale, t } = useI18n();
   const path = usePathname();
   const [profile, setProfile] = useState("");
+  const [avatar, setAvatar] = useState("");
   const [dark, setDark] = useState(false);
   const [active, setActive] = useState("analyze");
 
@@ -26,8 +27,16 @@ export default function Header() {
       window.history.replaceState(window.history.state, "", url);
     }
     api.me().then(user => {
-      if (current) setProfile(user?.name || user?.email?.split("@")[0] || "");
-    }, () => { if (current) setProfile(""); });
+      if (current) {
+        setProfile(user?.name || user?.email?.split("@")[0] || "");
+        setAvatar(user?.avatar_url || "");
+      }
+    }, () => {
+      if (current) {
+        setProfile("");
+        setAvatar("");
+      }
+    });
     return () => { current = false; };
   }, [path]);
   useEffect(() => {
@@ -77,8 +86,24 @@ export default function Header() {
       <div className="account">
         <button type="button" className="icon-button" onClick={toggleTheme} title={t.themeToggle} aria-label={t.themeToggle}><Icon name={dark ? "sun" : "moon"} size={17}/></button>
         <button type="button" className="language" onClick={() => setLocale(locale === "vi" ? "en" : "vi")} title={locale === "vi" ? "Switch to English" : "Chuyển sang tiếng Việt"} aria-label={locale === "vi" ? "Switch to English" : "Chuyển sang tiếng Việt"}><Icon name="globe" size={15}/>{locale.toUpperCase()}</button>
-        {profile ? <button className="account-link" title={profile} onClick={async () => { try { await api.logout(); } finally { setToken(null); window.location.assign("/"); } }}>{t.navSignOut}</button>
-          : <Link className="account-link" href="/login">{t.navSignIn}<Icon name="upRight" size={14}/></Link>}
+        {profile ? (
+          <>
+            <Link href="/profile" className={`account-link account-user ${path === "/profile" ? "active" : ""}`} title={profile} aria-label={`${t.navProfile}: ${profile}`}>
+              {avatar ? (
+                <img src={avatar} alt="" className="avatar-img-sm" />
+              ) : (
+                <Icon name="user" size={14}/>
+              )}
+              <span className="account-name">{profile}</span>
+            </Link>
+            <button className="account-link account-logout" title={t.navSignOut} onClick={async () => { try { await api.logout(); } finally { setToken(null); window.location.assign("/"); } }}>
+              <Icon name="logout" size={14}/>
+              <span className="logout-text">{t.navSignOut}</span>
+            </button>
+          </>
+        ) : (
+          <Link className="account-link" href="/login">{t.navSignIn}<Icon name="upRight" size={14}/></Link>
+        )}
       </div>
     </div></header>
   );

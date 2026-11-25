@@ -350,7 +350,13 @@ def test_dev_login_disabled_in_production(monkeypatch):
 # ------------------------------------------------------------------
 # 15. OAuth initiation requires configuration
 # ------------------------------------------------------------------
-def test_oauth_unconfigured_returns_configuration_required():
+def test_oauth_unconfigured_returns_configuration_required(monkeypatch):
+    from app.config import get_settings
+    settings = get_settings()
+    monkeypatch.setattr(settings, "auth_github_id", "")
+    monkeypatch.setattr(settings, "auth_github_secret", "")
+    monkeypatch.setattr(settings, "auth_google_id", "")
+    monkeypatch.setattr(settings, "auth_google_secret", "")
     resp_gh = client.get("/api/auth/oauth/github/url")
     assert resp_gh.status_code == 503
     assert "CONFIGURATION_REQUIRED" in resp_gh.json()["detail"]
