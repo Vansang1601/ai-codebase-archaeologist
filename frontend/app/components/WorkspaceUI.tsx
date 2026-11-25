@@ -68,7 +68,7 @@ export function Status({ value }: { value: string }) {
 export function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <Image src="/logo.svg" width={36} height={36} alt="" priority unoptimized />
+      <Image src="/logo.png" width={36} height={36} alt="" priority unoptimized />
     </span>
   );
 }
