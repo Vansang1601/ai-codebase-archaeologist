@@ -21,9 +21,21 @@ export default function LoginPage() {
 
   useEffect(() => {
     let current = true;
-    if (new URLSearchParams(location.search).has("error")) setError("OAuth");
-    api.me().then(user => { if (current && user?.email) router.replace("/"); }, () => {});
-    return () => { current = false; };
+    function resumeSession() {
+      const token = new URLSearchParams(location.hash.slice(1)).get("session_token");
+      if (token) {
+        setToken(token);
+        window.history.replaceState(window.history.state, "", location.pathname + location.search);
+      }
+      if (new URLSearchParams(location.search).has("error")) setError("OAuth");
+      api.me().then(user => { if (current && user?.email) router.replace("/library"); }, () => {});
+    }
+    resumeSession();
+    window.addEventListener("hashchange", resumeSession);
+    return () => {
+      current = false;
+      window.removeEventListener("hashchange", resumeSession);
+    };
   }, [router]);
 
   async function oauth(provider: "github" | "google") {
@@ -44,7 +56,7 @@ export default function LoginPage() {
       const session = action === "register" ? await api.register(email.trim(), name.trim()) : await api.login(email.trim());
       if (!session.access_token) throw new Error(vi ? "Chưa nhận được phiên đăng nhập." : "No session was returned.");
       setToken(session.access_token);
-      router.replace("/");
+      router.replace("/library");
     } catch (err) { setError(messageOf(err, locale)); setBusy(""); }
   }
 

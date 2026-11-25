@@ -173,6 +173,12 @@ export interface PullRequest {
   created_at_gh?: string | null;
 }
 
+export class ApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API}${path}`, {
@@ -191,7 +197,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const body = await res.json();
       message = body.detail || message;
     } catch {}
-    throw new Error(message);
+    throw new ApiError(res.status, message);
   }
 
   return res.json();

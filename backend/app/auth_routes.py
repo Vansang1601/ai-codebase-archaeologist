@@ -327,7 +327,8 @@ def oauth_browser_callback(
     user, tenant_id = _upsert_oauth_user(db, provider, provider_id, email, name, avatar_url)
     jwt_token = create_access_token(user.id, tenant_id)
 
-    response = RedirectResponse(url=f"{origin}/?token={jwt_token}", status_code=302)
+    # The sign-in page consumes the fragment before opening the library.
+    response = RedirectResponse(url=f"{origin}/login#session_token={jwt_token}", status_code=302)
     response.set_cookie(
         key="session_token",
         value=jwt_token,

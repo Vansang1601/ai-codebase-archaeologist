@@ -8,7 +8,6 @@ export default function StrataFigure() {
   return (
     <figure className="strata">
       <div className="figure-field">
-        <i className="cross tl" /><i className="cross tr" /><i className="cross bl" /><i className="cross br" />
         <Image src="/strata.webp" width={1200} height={764} alt="" priority unoptimized />
       </div>
       <figcaption><Icon name="layers" size={15} /> {vi ? "Mặt cắt minh họa kho mã" : "Repository cross-section"}</figcaption>

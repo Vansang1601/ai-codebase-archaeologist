@@ -20,6 +20,7 @@ function Workspace({ id }: { id: string }) {
   const [repo, setRepo] = useState<Repo | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [tab, setTab] = useState(0);
+  const [fromLibrary, setFromLibrary] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [revision, setRevision] = useState(0);
   const [sending, setSending] = useState(false);
@@ -37,7 +38,9 @@ function Workspace({ id }: { id: string }) {
   useEffect(() => {
     let current = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let jobId = new URLSearchParams(window.location.search).get("job");
+    const params = new URLSearchParams(window.location.search);
+    setFromLibrary(params.get("from") === "library");
+    let jobId = params.get("job");
 
     async function refresh() {
       try {
@@ -91,10 +94,16 @@ function Workspace({ id }: { id: string }) {
     </div>
   );
 
+  const backLink = (
+    <Link className="crumb" href={fromLibrary ? "/library" : "/#analyze"}>
+      <Icon name="back" size={15}/>{fromLibrary ? t.navLibrary : t.navHome}
+    </Link>
+  );
+
   if (!repo) {
     return (
       <section className="wrap workspace">
-        <Link className="crumb" href="/#library">{t.crumbLibrary}</Link>
+        {backLink}
         {errorBox || <p className="notice" role="status">{t.connecting}</p>}
       </section>
     );
@@ -106,9 +115,7 @@ function Workspace({ id }: { id: string }) {
 
   return (
     <div className="wrap workspace">
-      <Link className="crumb" href="/#library">
-        {t.crumbLibrary}
-      </Link>
+      {backLink}
       <div className="workspace-banner">
         <div className="repo-head">
           <div>

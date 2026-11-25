@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  palette: <><path d="M21 11a9 9 0 1 0-10 10c2 .2 2.8-1.3 2-2.8-.9-1.7-.3-3.2 1.7-3.2H17c2.5 0 4-1.4 4-4Z"/><circle cx="7.5" cy="11" r=".8"/><circle cx="10" cy="7" r=".8"/><circle cx="15" cy="7.5" r=".8"/></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></>,
+  phone: <path d="m8 3 2 5-2.5 2a13 13 0 0 0 6.5 6.5l2-2.5 5 2v3a2 2 0 0 1-2 2C10 21 3 14 3 5a2 2 0 0 1 2-2Z"/>,
   arrow: <path d="M4 12h15m-6-6 6 6-6 6" />,
   upRight: <path d="M6 18 18 6M6 6h12v12" />,
   back: <path d="M20 12H5m6 6-6-6 6-6" />,

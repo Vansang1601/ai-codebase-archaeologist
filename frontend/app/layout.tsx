@@ -17,6 +17,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{
             __html: `
               try {
+                const tone = localStorage.getItem('tone');
+                if (['forest', 'ocean', 'iris', 'amber'].includes(tone)) {
+                  document.documentElement.dataset.tone = tone;
+                }
                 const theme = localStorage.getItem('theme');
                 if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.documentElement.classList.add('dark');

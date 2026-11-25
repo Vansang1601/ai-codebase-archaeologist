@@ -41,10 +41,15 @@ PostgreSQL job queue  ---> parser-worker ----+
 
 ## Quick start with Docker
 
+For a fresh install, copy `.env.example` to `.env` and set `AUTH_SECRET` so the API can issue sign-in sessions. Generate a local value with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. When updating a running project, use its existing `.env`.
+
 ```bash
-cp .env.example .env
-docker compose up --build
+docker compose up -d --build
 ```
+
+Home opens with the repository analysis form. The About section (`/#about`) below it explains the architecture, features and source citations. The public guide is at `/guide`. After sign-in, `/library` lists the repositories available to the workspace. The palette control next to the theme and language controls saves a color choice in the current browser.
+
+Set `SUPPORT_EMAIL` and `SUPPORT_PHONE` in the root `.env` to publish the team's contact details at `/support`. Apply contact changes with `docker compose up -d frontend`.
 
 Then open:
 

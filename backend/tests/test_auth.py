@@ -215,6 +215,14 @@ def test_health_no_auth():
 # ------------------------------------------------------------------
 # 10. Tenant-scoped repo list
 # ------------------------------------------------------------------
+def test_guest_can_start_analysis_but_cannot_list_the_library():
+    assert client.get("/api/repos").status_code == 401
+    assert client.get("/api/repos", headers=_auth_header("expired-or-invalid")).status_code == 401
+    repo = client.post("/api/repos", json={"url": f"https://github.com/example/test-{uuid4().hex}"})
+    assert repo.status_code == 200
+    assert client.post(f"/api/repos/{repo.json()['id']}/sync", json={}).status_code == 200
+
+
 def test_repo_list_tenant_scoped():
     user_a = _make_user("list-a@example.com")
     user_b = _make_user("list-b@example.com")

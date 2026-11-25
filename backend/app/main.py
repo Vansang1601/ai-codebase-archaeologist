@@ -54,11 +54,11 @@ def health():
 
 
 @app.get("/api/repos")
-def list_repositories(db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
-    q = select(Repository).order_by(Repository.created_at.desc())
-    if user is not None:
-        tenant_id = get_user_tenant_id(user)
-        q = q.where((Repository.tenant_id == tenant_id) | (Repository.tenant_id == "00000000-0000-0000-0000-000000000001"))
+def list_repositories(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    tenant_id = get_user_tenant_id(user)
+    q = select(Repository).where(
+        Repository.tenant_id.in_([tenant_id, "00000000-0000-0000-0000-000000000001"])
+    ).order_by(Repository.created_at.desc())
     repos = db.scalars(q).all()
     out = []
     for repo in repos:
