@@ -1,7 +1,7 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
-import Icon from "./Icon";
 import { useI18n } from "../../lib/i18n";
 
 export function messageOf(error: unknown, locale: "en" | "vi" = "en") {
@@ -68,7 +68,7 @@ export function Status({ value }: { value: string }) {
 export function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <Icon name="layers" size={23} />
+      <Image src="/logo.svg" width={36} height={36} alt="" priority unoptimized />
     </span>
   );
 }
