@@ -88,6 +88,7 @@ def auth_status():
         "github_oauth_configured": gh_oauth_ok,
         "google_oauth_configured": google_oauth_ok,
         "github_app_configured": gh_app_ok,
+        "llm_configured": bool(settings.llm_base_url and settings.llm_api_key and settings.llm_model),
         "environment": settings.environment,
         "allow_dev_login": settings.allow_dev_login and not is_prod,
         "required_configs": required_configs,
@@ -95,15 +96,26 @@ def auth_status():
     }
 
 
+def _public_origin(request: Request, settings) -> str:
+    """Resolve public origin from PUBLIC_URL or proxy headers (works on any domain/tunnel)."""
+    if settings.public_url:
+        return settings.public_url.rstrip("/")
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+    if host:
+        return f"{proto}://{host}"
+    return settings.cors_origins.split(",")[0].strip().rstrip("/")
+
+
 # ------------------------------------------------------------------
 # GET /api/auth/oauth/{provider}/url - initiate OAuth
 # ------------------------------------------------------------------
 @router.get("/oauth/{provider}/url")
-def get_oauth_url(provider: str, redirect_uri: str | None = Query(default=None)):
+def get_oauth_url(provider: str, request: Request, redirect_uri: str | None = Query(default=None)):
     settings = get_settings()
     state = secrets.token_urlsafe(16)
 
-    callback_url = redirect_uri or f"http://localhost:8000/api/auth/oauth/{provider}/callback"
+    callback_url = redirect_uri or f"{_public_origin(request, settings)}/api/auth/oauth/{provider}/callback"
 
     if provider == "github":
         if not settings.auth_github_id or not settings.auth_github_secret:
@@ -295,13 +307,15 @@ def oauth_callback(provider: str, payload: OAuthCallbackRequest, db: Session = D
 @router.get("/oauth/{provider}/callback")
 def oauth_browser_callback(
     provider: str,
+    request: Request,
     code: str = Query(default=None),
     state: str = Query(default=None),
     error: str = Query(default=None),
     db: Session = Depends(get_db),
 ):
     settings = get_settings()
-    frontend_url = settings.cors_origins.split(",")[0].strip().rstrip("/")
+    origin = _public_origin(request, settings)
+    frontend_url = origin
 
     # OAuth denied by user
     if error:
@@ -315,7 +329,7 @@ def oauth_browser_callback(
     name: str | None = None
     avatar_url: str | None = None
     provider_id: str | None = None
-    callback_url = f"http://localhost:8000/api/auth/oauth/{provider}/callback"
+    callback_url = f"{origin}/api/auth/oauth/{provider}/callback"
 
     try:
         if provider == "github":
@@ -329,6 +343,7 @@ def oauth_browser_callback(
                         "client_id": settings.auth_github_id,
                         "client_secret": settings.auth_github_secret,
                         "code": code,
+                        "redirect_uri": callback_url,
                     },
                     headers={"Accept": "application/json"},
                 )

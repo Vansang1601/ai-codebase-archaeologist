@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://archaeologist:archaeologist@localhost:5432/archaeologist"
     cors_origins: str = "http://localhost:3000"
+    public_url: str = ""
     log_level: str = "INFO"
     llm_base_url: str = ""
     llm_api_key: str = ""

@@ -1,4 +1,4 @@
-const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -251,7 +251,11 @@ export const api = {
     message?: string;
   }>("/api/auth/status"),
 
-  oauthUrl: (provider: "github" | "google") => request<{ url: string }>(`/api/auth/oauth/${provider}/url`),
+  oauthUrl: (provider: "github" | "google") => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const qs = origin ? `?redirect_uri=${encodeURIComponent(`${origin}/api/auth/oauth/${provider}/callback`)}` : "";
+    return request<{ url: string }>(`/api/auth/oauth/${provider}/url${qs}`);
+  },
 
   authLoginUrl: `${API}/api/auth/oauth/github/url`,
 
