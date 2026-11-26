@@ -35,7 +35,7 @@ const content: Record<"en" | "vi", Copy> = {
       ["Choose a repository", "On the home page, paste a public GitHub URL such as https://github.com/pallets/click, or pick an example. Sign in first if you want the analysis saved in your library."],
       ["Start the analysis", "Select Analyze. The workspace shows each phase while the repository is downloaded, parsed and indexed at one specific commit."],
       ["Read the results", "Switch between the tabs to read code, browse history, follow dependencies and review findings."],
-      ["Check an answer", "Open the chat button and ask a question. Follow any citation to read the referenced lines on GitHub."],
+      ["Check an answer", "Open the chat button and ask a question. Select a citation to highlight its lines in the explorer, or use the GitHub link beside it."],
     ],
     action: "Analyze a repository",
     beforeTitle: "Before you start",
@@ -75,14 +75,17 @@ const content: Record<"en" | "vi", Copy> = {
     ],
     faqTitle: "Frequently asked questions",
     faq: [
-      ["Can I analyze a private repository?", "Not yet. This version works with public GitHub repositories. Private access through a GitHub App is planned."],
-      ["Which languages are supported?", "Python is parsed with a full AST. JavaScript and TypeScript are supported at a basic level. Other languages are still indexed as text for search, but have fewer symbols and dependencies."],
-      ["Why does the answer say there is insufficient evidence?", "The system answers only when the retrieved code supports it. Try a more specific question, or check that the file exists in the snapshot."],
-      ["Why are some files missing?", "Binaries, build output, vendored folders, secrets and files over 256 KB are skipped on purpose. A repository is also limited to 5,000 files."],
-      ["Is every finding a real problem?", "No. Findings are rule-based signals and can be false positives. Treat them as leads and confirm them in the code."],
-      ["The analysis failed. What now?", "Select Re-analyze. If it fails again, contact support with the repository URL and the message you saw."],
+      ["Can I analyze a private repository?", "Not yet. This version works only with public GitHub repositories, because the worker clones them without any credentials. Private access through a GitHub App is planned. Until then, you can fork or mirror the code into a public repository you are allowed to share, but never publish code that is confidential."],
+      ["Which languages are supported?", "Python is parsed with a full AST, so functions, classes and imports are extracted accurately. JavaScript and TypeScript are supported at a basic level: you get symbols and the main import relations. Other languages are still indexed as plain text, so you can search and ask about them, but they have fewer symbols and no dependency graph."],
+      ["Why does the answer say there is insufficient evidence?", "The system answers only when the retrieved code actually supports the answer, and it would rather say so than guess. This usually means the question is too general, the topic lives in a file that was skipped, or the repository simply does not contain it. Name a file, function or feature, check that the file exists in the Source Code tab, and ask again."],
+      ["How do I read and trust a citation?", "Each citation combines a file path, a short commit SHA and a line range such as #L12-L18. Select it to highlight those lines in the Source Code tab, or open the GitHub link beside it to read the same revision online. Always open at least one citation before you rely on an answer, because the answer is only as good as the lines it points to."],
+      ["Why are some files missing?", "Some files are skipped on purpose to keep the analysis safe and fast: binaries, build output, vendored or generated folders, secrets and any file larger than 256 KB. A repository is also limited to 5,000 files. If an important file is missing, check whether it falls under one of these rules."],
+      ["Is every finding in Technical Debt a real problem?", "No. Findings come from fixed rules, such as very large files or functions, heavy coupling and circular dependencies, so some are false positives. Treat each one as a lead: open its evidence, read the code and decide with your team whether it needs action. The tool suggests, it does not judge."],
+      ["Why do I not see my repository in the Library?", "The Library lists repositories analyzed while you were signed in. If you analyzed one before signing in, sign in and analyze it again. If it is already indexed at the same commit, the saved results are reused and it appears right away."],
+      ["The analysis is slow or failed. What should I do?", "Large repositories take longer, and the page shows the current phase and progress. If a job fails or seems stuck, select Re-analyze. If it fails again, scroll to the Support section at the bottom of the home page and send us the repository URL, the commit SHA if shown, and the exact message you saw."],
+      ["Does Archaeologist run or change my code?", "No. The repository is cloned and read only. Its code is parsed as text and is never executed or modified, and nothing is written back to GitHub."],
     ],
-    support: "Need more help? Contact support",
+    support: "Need more help? Go to Support",
   },
   vi: {
     intro: "Từ một đường dẫn GitHub đến đúng dòng mã đứng sau mỗi kết quả, chỉ trong bốn bước.",
@@ -91,7 +94,7 @@ const content: Record<"en" | "vi", Copy> = {
       ["Chọn kho mã", "Ở Trang chủ, dán đường dẫn kho GitHub công khai, ví dụ https://github.com/pallets/click, hoặc chọn một ví dụ. Hãy đăng nhập trước nếu muốn lưu kết quả vào Thư viện."],
       ["Bắt đầu phân tích", "Nhấn Phân tích. Trang kết quả hiển thị từng giai đoạn khi kho được tải, phân tích và lập chỉ mục tại một commit cụ thể."],
       ["Đọc kết quả", "Chuyển giữa các thẻ để đọc mã, xem lịch sử, lần theo phụ thuộc và xem các phát hiện."],
-      ["Kiểm tra câu trả lời", "Mở nút trò chuyện và đặt câu hỏi. Bấm vào trích dẫn để đọc đúng các dòng mã trên GitHub."],
+      ["Kiểm tra câu trả lời", "Mở nút trò chuyện và đặt câu hỏi. Chọn trích dẫn để tô sáng đúng dòng mã trong trình duyệt tệp, hoặc mở liên kết GitHub bên cạnh."],
     ],
     action: "Phân tích một kho mã",
     beforeTitle: "Trước khi bắt đầu",
@@ -131,14 +134,17 @@ const content: Record<"en" | "vi", Copy> = {
     ],
     faqTitle: "Câu hỏi thường gặp",
     faq: [
-      ["Tôi có phân tích được kho riêng tư không?", "Chưa. Phiên bản này làm việc với kho GitHub công khai. Truy cập kho riêng tư qua GitHub App nằm trong định hướng mở rộng."],
-      ["Hỗ trợ những ngôn ngữ nào?", "Python được phân tích bằng AST đầy đủ. JavaScript và TypeScript ở mức cơ bản. Ngôn ngữ khác vẫn được lập chỉ mục dạng văn bản để tìm kiếm, nhưng có ít hàm và phụ thuộc hơn."],
-      ["Vì sao câu trả lời báo thiếu bằng chứng?", "Hệ thống chỉ trả lời khi mã truy xuất được ủng hộ câu trả lời. Hãy hỏi cụ thể hơn, hoặc kiểm tra tệp đó có trong phiên bản này không."],
-      ["Vì sao một số tệp không xuất hiện?", "Tệp nhị phân, thư mục build, mã vendor, tệp bí mật và tệp trên 256 KB bị bỏ qua có chủ đích. Mỗi kho cũng giới hạn 5.000 tệp."],
-      ["Mọi phát hiện đều là lỗi thật?", "Không. Phát hiện dựa trên quy tắc nên có thể sai. Hãy xem đó là manh mối và kiểm tra lại trong mã."],
-      ["Phân tích bị lỗi thì làm gì?", "Nhấn Phân tích lại. Nếu vẫn lỗi, hãy liên hệ hỗ trợ kèm đường dẫn kho và thông báo bạn thấy."],
+      ["Tôi có phân tích được kho riêng tư không?", "Chưa. Phiên bản này chỉ làm việc với kho GitHub công khai, vì bộ xử lý tải kho mà không dùng thông tin đăng nhập nào. Truy cập kho riêng tư qua GitHub App nằm trong định hướng mở rộng. Trong lúc chờ, bạn có thể fork hoặc sao chép mã sang một kho công khai mà bạn được phép chia sẻ, nhưng tuyệt đối không công khai mã nguồn mang tính bảo mật."],
+      ["Hỗ trợ những ngôn ngữ nào?", "Python được phân tích bằng AST đầy đủ nên hàm, lớp và import được trích xuất chính xác. JavaScript và TypeScript ở mức cơ bản: có danh sách hàm/lớp và các quan hệ import chính. Ngôn ngữ khác vẫn được lập chỉ mục dạng văn bản nên bạn có thể tìm kiếm và hỏi đáp, nhưng có ít hàm hơn và không có đồ thị phụ thuộc."],
+      ["Vì sao câu trả lời báo thiếu bằng chứng?", "Hệ thống chỉ trả lời khi đoạn mã truy xuất được thật sự ủng hộ câu trả lời, và thà báo thiếu còn hơn đoán bừa. Thường là do câu hỏi quá chung chung, nội dung nằm trong tệp đã bị bỏ qua, hoặc kho mã vốn không chứa nó. Hãy nêu tên tệp, hàm hoặc tính năng, kiểm tra tệp có trong thẻ Mã nguồn không rồi hỏi lại."],
+      ["Làm sao đọc và kiểm chứng một trích dẫn?", "Mỗi trích dẫn gồm đường dẫn tệp, mã commit rút gọn và phạm vi dòng như #L12-L18. Chọn trích dẫn để tô sáng các dòng đó trong thẻ Mã nguồn, hoặc mở liên kết GitHub bên cạnh để đọc đúng phiên bản trên mạng. Hãy mở ít nhất một trích dẫn trước khi tin vào câu trả lời, vì câu trả lời chỉ đáng tin bằng chính những dòng mã mà nó chỉ tới."],
+      ["Vì sao một số tệp không xuất hiện?", "Một số tệp bị bỏ qua có chủ đích để việc phân tích an toàn và nhanh: tệp nhị phân, thư mục build, mã vendor hoặc mã sinh tự động, tệp bí mật và mọi tệp lớn hơn 256 KB. Mỗi kho cũng giới hạn 5.000 tệp. Nếu thiếu một tệp quan trọng, hãy kiểm tra xem nó có thuộc các quy tắc trên không."],
+      ["Mọi phát hiện trong Nợ kỹ thuật đều là lỗi thật?", "Không. Phát hiện dựa trên quy tắc cố định như tệp hoặc hàm quá lớn, phụ thuộc quá nhiều, vòng phụ thuộc, nên một số có thể là báo nhầm. Hãy xem mỗi mục là một manh mối: mở bằng chứng kèm theo, đọc mã rồi cùng nhóm quyết định có cần xử lý hay không. Công cụ chỉ gợi ý, không phán xét."],
+      ["Vì sao tôi không thấy kho của mình trong Thư viện?", "Thư viện chỉ liệt kê các kho được phân tích khi bạn đã đăng nhập. Nếu bạn phân tích trước khi đăng nhập, hãy đăng nhập rồi phân tích lại. Nếu commit đó đã được lập chỉ mục, kết quả đã lưu sẽ được dùng lại và kho xuất hiện ngay."],
+      ["Phân tích chậm hoặc bị lỗi thì làm gì?", "Kho lớn cần nhiều thời gian hơn, trang kết quả hiển thị giai đoạn và tiến độ hiện tại. Nếu tác vụ lỗi hoặc có vẻ bị treo, hãy nhấn Phân tích lại. Nếu vẫn lỗi, kéo xuống phần Hỗ trợ ở cuối Trang chủ và gửi cho nhóm đường dẫn kho, mã commit nếu có và nguyên văn thông báo bạn thấy."],
+      ["Archaeologist có chạy hay sửa mã của tôi không?", "Không. Kho chỉ được tải về và đọc. Mã được phân tích dưới dạng văn bản, không bao giờ bị chạy hay bị sửa, và không có gì được ghi ngược lại lên GitHub."],
     ],
-    support: "Cần thêm trợ giúp? Liên hệ hỗ trợ",
+    support: "Cần thêm trợ giúp? Xem phần Hỗ trợ",
   },
 };
 
@@ -162,6 +168,11 @@ export default function GuidePage() {
         <dl>{copy.before.map(([title, body]) => <div key={title}><dt>{title}</dt><dd>{body}</dd></div>)}</dl>
       </aside>
     </div>
+
+    <section className="guide-example">
+      <Icon name="repository" size={24}/><div><h2>{locale==="vi" ? "Thử lần theo một tệp" : "Trace a file in Click"}</h2>
+      <p>{locale==="vi" ? "Phân tích " : "Analyze "}<code>pallets/click</code>{locale==="vi" ? ", mở bản đồ phụ thuộc rồi tìm " : ", open the dependency map and locate "}<code>src/click/core.py</code>{locale==="vi" ? ". Chọn tệp để xem các tệp phụ thuộc vào nó. Mở chat, hỏi về lớp Command rồi chọn trích dẫn để đọc mã ở đúng commit." : ". Select it to inspect its dependents. Ask the chat about the Command class, then open a citation to read its source at the indexed commit."}</p></div>
+    </section>
 
     <section className="rs-section" aria-labelledby="guide-areas">
       <h2 id="guide-areas">{copy.areasTitle}</h2>
@@ -203,7 +214,7 @@ export default function GuidePage() {
           <details key={question}><summary>{question}</summary><p>{answer}</p></details>
         ))}
       </div>
-      <Link className="text-action resource-link" href="/support">{copy.support}<Icon name="arrow" size={15}/></Link>
+      <Link className="text-action resource-link" href="/#support">{copy.support}<Icon name="arrow" size={15}/></Link>
     </section>
   </article>;
 }

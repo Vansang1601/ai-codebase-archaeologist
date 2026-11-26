@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, type AskResult, type Repo } from "../../lib/api";
+import { api, type AskResult, type SourceLocation, type Repo } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
 import { messageOf } from "./WorkspaceUI";
 
@@ -20,15 +21,28 @@ type Message = {
 };
 
 interface FloatingChatProps {
-  repo: Repo;
+  /** Repository the chat answers about; null when none is available yet. */
+  repo: Repo | null;
+  /** Other repositories the user can switch to (empty on a results page). */
+  repos?: Repo[];
+  signedIn?: boolean;
+  onSelectRepo?: (id: string) => void;
   isOpen: boolean;
+  onOpenSource: (source:SourceLocation)=>void;
+  onCitations: (sources:SourceLocation[])=>void;
   onToggle: (open: boolean) => void;
 }
 
-export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatProps) {
+export default function FloatingChat({ repo, repos = [], signedIn = false, onSelectRepo, isOpen, onToggle, onOpenSource, onCitations }: FloatingChatProps) {
   const { t, locale } = useI18n();
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Conversations are kept per repository so they survive moving between pages.
+  const [threads, setThreads] = useState<Record<string, Message[]>>({});
+  const threadKey = repo?.id ?? "";
+  const messages = threads[threadKey] ?? [];
+  function addMessage(key: string, message: Message) {
+    setThreads(prev => ({ ...prev, [key]: [...(prev[key] ?? []), message] }));
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -37,7 +51,8 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
   const isVi = locale === "vi";
-  const shortSha = repo.snapshot?.commit_sha ? repo.snapshot.commit_sha.slice(0, 7) : "";
+  const shortSha = repo?.snapshot?.commit_sha ? repo.snapshot.commit_sha.slice(0, 7) : "";
+  const ready = !!repo?.snapshot;
 
   // Auto-scroll on new message
   useEffect(() => {
@@ -63,7 +78,8 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
 
   async function handleSend(qText?: string) {
     const textToSend = (qText || question).trim();
-    if (busy || textToSend.length < 2) return;
+    if (!repo || !ready || busy || textToSend.length < 2) return;
+    const target = repo;
 
     const userMsg: Message = {
       id: "u-" + Date.now(),
@@ -77,13 +93,14 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
       content: m.content,
     }));
 
-    setMessages((prev) => [...prev, userMsg]);
+    addMessage(target.id, userMsg);
     setQuestion("");
     setBusy(true);
     setError("");
 
     try {
-      const res = await api.ask(repo.id, textToSend, history);
+      const res = await api.ask(target.id, textToSend, history);
+      onCitations(res.evidence);
       const assistantMsg: Message = {
         id: "a-" + Date.now(),
         role: "assistant",
@@ -91,7 +108,7 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
         result: res,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+      addMessage(target.id, assistantMsg);
     } catch (err) {
       setError(messageOf(err, locale));
       setQuestion(textToSend);
@@ -162,7 +179,7 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
                 <button
                   type="button"
                   className="chat-icon-btn"
-                  disabled={busy} onClick={() => { setMessages([]); setError(""); }}
+                  disabled={busy} onClick={() => { setThreads(prev => ({ ...prev, [threadKey]: [] })); onCitations([]); setError(""); }}
                   title={isVi ? "Xoá đoạn hội thoại" : "Clear conversation"}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -185,9 +202,36 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
             </div>
           </div>
 
+          {repo && (
+            <div className="chat-repo-bar">
+              {repos.length > 1 ? (
+                <select
+                  aria-label={isVi ? "Chọn kho mã để hỏi đáp" : "Choose a repository to ask about"}
+                  value={repo.id}
+                  onChange={(e) => { setError(""); onSelectRepo?.(e.target.value); }}
+                  disabled={busy}
+                >
+                  {repos.map(r => <option key={r.id} value={r.id}>{r.owner} / {r.name}</option>)}
+                </select>
+              ) : (
+                <span className="chat-repo-name">{repo.owner} / {repo.name}</span>
+              )}
+            </div>
+          )}
+
           {/* Messages Stream */}
           <div className="chat-box-body" ref={scrollRef} role="log" aria-live="polite">
-            {messages.length === 0 && (
+            {!ready && (
+              <div className="chat-welcome">
+                <h3>{isVi ? "Chưa có kho mã để hỏi đáp" : "No repository to ask about yet"}</h3>
+                <p>{isVi
+                  ? "Hãy phân tích một kho GitHub ở Trang chủ, sau đó quay lại đây để hỏi về tệp, hàm và lịch sử thay đổi."
+                  : "Analyze a GitHub repository from the home page, then come back here to ask about its files, functions and history."}</p>
+                {!signedIn && <p>{isVi ? "Đăng nhập để chọn lại các kho đã phân tích trước đó." : "Sign in to pick from repositories you analyzed before."}</p>}
+                <Link className="text-action" href="/#analyze" onClick={() => onToggle(false)}>{isVi ? "Phân tích một kho mã" : "Analyze a repository"}</Link>
+              </div>
+            )}
+            {ready && messages.length === 0 && (
               <div className="chat-welcome">
                 <h3>{isVi ? "Bạn muốn tìm hiểu phần nào?" : "What would you like to trace?"}</h3>
                 <p>{isVi ? "Hỏi về tệp hoặc hàm trong phiên bản này. Mở trích dẫn để đọc các dòng mã liên quan." : "Ask about a file or function in this snapshot. Open a citation to read the relevant lines."}</p>
@@ -241,19 +285,14 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
                           </span>
                           <div className="evidence-chips">
                             {m.result.evidence.map((ev, idx) => (
-                              <a
-                                key={idx}
-                                href={sourceUrl(repo, ev.commit_sha, ev.path, ev.line_start, ev.line_end)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="evidence-chip"
-                                title={`Score: ${ev.score.toFixed(3)} | Symbol: ${ev.symbol_name || "module"}`}
-                              >
-                                <span className="ev-idx">[E{idx + 1}]</span>
-                                <span className="ev-path">{ev.path.split("/").pop()}</span>
-                                <span className="ev-lines">L{ev.line_start}-{ev.line_end}</span>
-                                <span className="ev-score">{t.scoreLabel} {ev.score.toFixed(2)}</span>
-                              </a>
+                              <div key={idx} className="citation-row">
+                                <button className="evidence-chip" onClick={()=>onOpenSource(ev)} title={isVi ? "Mở dòng mã được trích dẫn" : "Open cited source lines"}>
+                                  <span className="ev-idx">[E{idx+1}]</span><span className="ev-path">{ev.path}</span>
+                                  <span className="ev-lines">L{ev.line_start}–{ev.line_end}</span>
+                                  <span className="ev-score">{ev.commit_sha.slice(0,7)} · {t.scoreLabel} {ev.score.toFixed(2)}</span>
+                                </button>
+                                <a href={repo ? sourceUrl(repo,ev.commit_sha,ev.path,ev.line_start,ev.line_end) : undefined} target="_blank" rel="noreferrer" aria-label={"GitHub · "+ev.path}>GitHub ↗</a>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -302,12 +341,13 @@ export default function FloatingChat({ repo, isOpen, onToggle }: FloatingChatPro
                 placeholder={isVi ? "Đặt câu hỏi về codebase (Enter để gửi)..." : "Ask about this codebase (Enter to send)..."}
                 rows={1}
                 maxLength={2000}
-                readOnly={busy}
+                readOnly={busy || !ready}
+                disabled={!ready}
               />
               <button
                 type="submit"
                 className="chat-send-btn"
-                disabled={busy || question.trim().length < 2}
+                disabled={busy || !ready || question.trim().length < 2}
                 aria-label={isVi ? "Gửi câu hỏi" : "Send question"}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

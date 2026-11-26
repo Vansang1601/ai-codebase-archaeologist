@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -7,7 +8,7 @@ import { api, getToken, setToken } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
 import { BrandMark } from "./WorkspaceUI";
 import Icon from "./Icon";
-import TonePicker from "./TonePicker";
+import { FlagEN, FlagVN } from "./Flag";
 
 export default function Header() {
   const { locale, setLocale, t } = useI18n();
@@ -53,9 +54,8 @@ export default function Header() {
 
   const links = [
     ["/", t.navHome],
-    ...(profile ? [["/library", t.navLibrary]] : []),
     ["/guide", t.navGuide],
-    ["/support", t.navSupport],
+    ...(profile ? [["/library", t.navLibrary]] : []),
   ];
   return (
     <header className="mast"><a className="sr-only skip" href="#main-content">{locale === "vi" ? "Đến nội dung chính" : "Skip to content"}</a><div className="wrap mast-inner">
@@ -67,13 +67,15 @@ export default function Header() {
       </nav>
       <div className="account">
         <button type="button" className="icon-button" onClick={toggleTheme} title={t.themeToggle} aria-label={t.themeToggle}><Icon name={dark ? "sun" : "moon"} size={17}/></button>
-        <TonePicker/>
-        <button type="button" className="language" onClick={() => setLocale(locale === "vi" ? "en" : "vi")} title={locale === "vi" ? "Switch to English" : "Chuyển sang tiếng Việt"} aria-label={locale === "vi" ? "Switch to English" : "Chuyển sang tiếng Việt"}><Icon name="globe" size={15}/>{locale.toUpperCase()}</button>
+        <div className="lang-switch" role="group" aria-label={locale === "vi" ? "Ngôn ngữ" : "Language"}>
+          <button type="button" className="lang-flag" aria-pressed={locale === "vi"} onClick={() => setLocale("vi")} title="Tiếng Việt" aria-label="Tiếng Việt"><FlagVN/></button>
+          <button type="button" className="lang-flag" aria-pressed={locale === "en"} onClick={() => setLocale("en")} title="English" aria-label="English"><FlagEN/></button>
+        </div>
         {profile ? (
           <>
             <Link href="/profile" className={`account-link account-user ${path === "/profile" ? "active" : ""}`} title={profile} aria-label={`${t.navProfile}: ${profile}`}>
               {avatar ? (
-                <img src={avatar} alt="" className="avatar-img-sm" />
+                <Image src={avatar} width={18} height={18} alt="" className="avatar-img-sm" unoptimized />
               ) : (
                 <Icon name="user" size={14}/>
               )}

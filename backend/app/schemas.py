@@ -24,6 +24,7 @@ class QuestionRequest(BaseModel):
 
 
 class ImpactRequest(BaseModel):
+    commit_sha: str | None = None
     target_path: str = Field(min_length=1, max_length=1000)
     depth: int = Field(default=2, ge=1, le=4)
 

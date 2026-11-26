@@ -10,12 +10,6 @@ type Copy = {
   features: Item[];
   flowTitle: string;
   flow: [string, string][];
-  architecture: string;
-  components: [string, string][];
-  stackLabel: string;
-  stack: string[];
-  principlesTitle: string;
-  principles: string[];
   citations: string;
   citationText: string;
   citationExample: string;
@@ -41,25 +35,10 @@ const content: Record<"en" | "vi", Copy> = {
       ["Submit a repository", "Paste a public GitHub URL. The API validates it and queues an analysis job."],
       ["Fetch and filter", "The worker clones the repository safely, records the commit SHA and skips binaries, build output, vendored code, secrets and oversized files."],
       ["Parse and index", "It extracts functions, classes and imports, maps commits and Pull Requests, then splits the code into symbol-sized chunks for search."],
-      ["Explore and ask", "Read the results, ask questions and open any citation on GitHub."],
-    ],
-    architecture: "Architecture",
-    components: [
-      ["Next.js interface", "Where you submit a repository and explore files, history, graphs and answers."],
-      ["FastAPI and PostgreSQL", "The API handles sign-in, access and job queueing. PostgreSQL stores jobs and every indexed result."],
-      ["Analysis worker", "A separate Python service that fetches the repository and builds the index, so heavy work never blocks the web app."],
-    ],
-    stackLabel: "Built with",
-    stack: ["Next.js", "FastAPI", "PostgreSQL", "Python AST", "Hybrid retrieval", "Docker Compose", "Optional LLM"],
-    principlesTitle: "Design principles",
-    principles: [
-      "Evidence first. No matching evidence means no conclusion.",
-      "Read-only. Analyzed code is never executed and never modified.",
-      "Suggestions only. Findings are leads to verify, not verdicts.",
-      "Your data stays yours. Only repositories you are allowed to see are analyzed.",
+      ["Explore and ask", "Read the results, ask questions and open a citation in the explorer or on GitHub."],
     ],
     citations: "How to read a citation",
-    citationText: "A citation combines a file path, a commit SHA and a line range. #L12-L18 highlights lines 12 to 18. Opening it shows that exact revision on GitHub, even after the branch moves on.",
+    citationText: "A citation combines a file path, a commit SHA and a line range. #L12-L18 highlights lines 12 to 18. Open it in the explorer or on GitHub to read that exact revision, even after the branch moves on.",
     citationExample: "src/app.py · a1b2c3d · #L12-L18",
     evidence: "When the indexed code gives too little evidence, the answer says it could not be verified.",
     limitsTitle: "Current scope",
@@ -85,25 +64,10 @@ const content: Record<"en" | "vi", Copy> = {
       ["Gửi kho mã", "Dán đường dẫn kho GitHub công khai. API kiểm tra rồi đưa tác vụ phân tích vào hàng đợi."],
       ["Tải và lọc", "Bộ xử lý tải kho an toàn, ghi lại commit SHA và bỏ qua tệp nhị phân, thư mục build, mã vendor, tệp bí mật và tệp quá lớn."],
       ["Phân tích và lập chỉ mục", "Trích xuất hàm, lớp, quan hệ import; ánh xạ commit, Pull Request; chia mã thành các đoạn theo hàm để tìm kiếm."],
-      ["Khám phá và hỏi đáp", "Đọc kết quả, đặt câu hỏi và mở bất kỳ trích dẫn nào trên GitHub."],
-    ],
-    architecture: "Kiến trúc hệ thống",
-    components: [
-      ["Giao diện Next.js", "Nơi bạn gửi kho mã, xem tệp, lịch sử, đồ thị phụ thuộc và câu trả lời."],
-      ["API FastAPI và PostgreSQL", "API lo đăng nhập, phân quyền và hàng đợi tác vụ. PostgreSQL lưu tác vụ và toàn bộ kết quả đã lập chỉ mục."],
-      ["Bộ xử lý phân tích", "Dịch vụ Python riêng, tải kho và dựng chỉ mục, để việc nặng không làm chậm ứng dụng web."],
-    ],
-    stackLabel: "Công nghệ",
-    stack: ["Next.js", "FastAPI", "PostgreSQL", "Python AST", "Tìm kiếm lai", "Docker Compose", "LLM (tùy chọn)"],
-    principlesTitle: "Nguyên tắc thiết kế",
-    principles: [
-      "Bằng chứng trước tiên. Không có bằng chứng thì không kết luận.",
-      "Chỉ đọc. Mã được phân tích không bao giờ bị chạy hay bị sửa.",
-      "Chỉ gợi ý. Các phát hiện là manh mối cần kiểm chứng, không phải kết luận.",
-      "Dữ liệu của bạn. Chỉ phân tích kho mà bạn được phép xem.",
+      ["Khám phá và hỏi đáp", "Đọc kết quả, đặt câu hỏi và mở trích dẫn trong trình duyệt tệp hoặc trên GitHub."],
     ],
     citations: "Cách đọc trích dẫn",
-    citationText: "Mỗi trích dẫn gồm đường dẫn tệp, mã commit và phạm vi dòng. #L12-L18 đánh dấu từ dòng 12 đến dòng 18. Bấm vào để mở đúng phiên bản trên GitHub, kể cả khi nhánh đã có thay đổi mới.",
+    citationText: "Mỗi trích dẫn gồm đường dẫn tệp, mã commit và phạm vi dòng. #L12-L18 đánh dấu từ dòng 12 đến dòng 18. Mở trong trình duyệt tệp hoặc trên GitHub để xem đúng phiên bản, kể cả khi nhánh đã có thay đổi mới.",
     citationExample: "src/app.py · a1b2c3d · #L12-L18",
     evidence: "Nếu mã đã lập chỉ mục chưa cung cấp đủ bằng chứng, câu trả lời sẽ báo chưa thể kiểm chứng.",
     limitsTitle: "Phạm vi hiện tại",
@@ -145,28 +109,6 @@ export default function AboutOverview() {
           {copy.flow.map(([title, body]) => <li key={title}><h4>{title}</h4><p>{body}</p></li>)}
         </ol>
       </section>
-
-      <div className="resource-columns rs-section">
-        <section className="about-body" aria-labelledby="about-arch">
-          <section>
-            <h3 id="about-arch">{copy.architecture}</h3>
-            <dl className="about-architecture">
-              {copy.components.map(([name, description]) => (
-                <div key={name}><dt>{name}</dt><dd>{description}</dd></div>
-              ))}
-            </dl>
-            <p className="chip-label">{copy.stackLabel}</p>
-            <ul className="chip-row">{copy.stack.map(item => <li key={item} className="chip">{item}</li>)}</ul>
-          </section>
-        </section>
-        <aside className="resource-aside">
-          <Icon name="shield" size={24}/>
-          <h3>{copy.principlesTitle}</h3>
-          <ul className="tick-list">
-            {copy.principles.map(item => <li key={item}><Icon name="check" size={16}/><span>{item}</span></li>)}
-          </ul>
-        </aside>
-      </div>
 
       <div className="resource-columns even rs-section">
         <aside className="resource-aside">

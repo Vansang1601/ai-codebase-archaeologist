@@ -1,40 +1,88 @@
 "use client";
 
-import { useCallback, useState, type FormEvent } from "react";
-import { api, type AskResult, type ImpactResult, type Repo } from "../../lib/api";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { api, type AskResult, type FileDetail, type SourceLocation, type Repo } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import FileTree from "./FileTree";
+import FileMap from "./FileMap";
+export { default as Graph } from "./DependencyMap";
 import Icon from "./Icon";
 import { messageOf, ReadView, Status, useRead } from "./WorkspaceUI";
 
 function sourceUrl(repo: Repo, sha: string, path: string, start?: number | null, end?: number | null) {
   const file = path.split("/").map(encodeURIComponent).join("/");
   const lines = start ? "#L" + start + (end && end > start ? "-L" + end : "") : "";
-  return "https://github.com/" + encodeURIComponent(repo.owner) + "/" + encodeURIComponent(repo.name) + "/blob/" + encodeURIComponent(sha) + "/" + file + lines;
+  return (
+    "https://github.com/" +
+    encodeURIComponent(repo.owner) +
+    "/" +
+    encodeURIComponent(repo.name) +
+    "/blob/" +
+    encodeURIComponent(sha) +
+    "/" +
+    file +
+    lines
+  );
 }
 
 export function Overview({ repo }: { repo: Repo }) {
   const { t, locale } = useI18n();
   const s = repo.snapshot!;
   const metrics = [
-    [t.statFiles, s.file_count],
-    [t.statSymbols, s.symbol_count],
-    [t.statDeps, s.dependency_count],
-    [t.statChunks, s.chunk_count],
-    [t.statPulls, s.pr_count ?? 0],
+    [t.statFiles, "file_count"],
+    [t.statSymbols, "symbol_count"],
+    [t.statDeps, "dependency_count"],
+    [t.statChunks, "chunk_count"],
+    [t.statPulls, "pr_count"],
   ] as const;
 
   return (
     <section className="panel">
       <h2>{t.tabOverview}</h2>
-      <p className="muted">{locale === "vi" ? "Số liệu của phiên bản đã lập chỉ mục." : "Index totals for this revision."}</p>
+      <p className="muted">
+        {locale === "vi" ? "Số liệu của phiên bản đã lập chỉ mục." : "Index totals for this revision."}
+      </p>
       <dl className="metrics">
-        {metrics.map(([name, count]) => (
-          <div key={name}>
-            <dt>{name}</dt>
-            <dd>{count.toLocaleString(locale === "vi" ? "vi-VN" : "en-US")}</dd>
-          </div>
-        ))}
+        {metrics.map(([name, key]) => {
+          const values = (repo.snapshot_history || []).map((point) => point[key] ?? 0);
+          const min = Math.min(...values),
+            max = Math.max(...values);
+          const points = values
+            .map((v, i) =>
+              [
+                2 + (i * 106) / (values.length - 1),
+                max === min ? 15 : 27 - ((v - min) * 24) / (max - min),
+              ].join(","),
+            )
+            .join(" ");
+          return (
+            <div key={name}>
+              <dt>{name}</dt>
+              <dd>{(s[key] ?? 0).toLocaleString(locale === "vi" ? "vi-VN" : "en-US")}</dd>
+              {values.length >= 2 && (
+                <svg
+                  viewBox="0 0 110 30"
+                  className="spark"
+                  role="img"
+                  aria-label={name + " · " + values.join(" → ")}
+                >
+                  <title>{values.join(" → ")}</title>
+                  <polyline points={points} />
+                </svg>
+              )}
+            </div>
+          );
+        })}
       </dl>
+      <p className="metric-note">
+        {(repo.snapshot_history?.length || 0) > 1
+          ? (locale === "vi" ? "Xu hướng qua các phiên bản đã phân tích" : "Trend across indexed revisions") +
+            " · " +
+            repo.snapshot_history!.length
+          : locale === "vi"
+            ? "Xu hướng sẽ xuất hiện từ phiên bản đã phân tích thứ hai."
+            : "Trends appear after a second revision has been indexed."}
+      </p>
       <dl className="facts">
         <div>
           <dt>{t.factSha}</dt>
@@ -51,31 +99,69 @@ export function Overview({ repo }: { repo: Repo }) {
   );
 }
 
-function SourceFile({ id, path }: { id: string; path: string }) {
+function CodeReader({ file, location }: { file: FileDetail; location: SourceLocation }) {
   const { locale } = useI18n();
-  const read = useRead(useCallback(() => api.file(id, path), [id, path]));
+  const mark = useRef<HTMLElement>(null);
+  const pre = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    const reader = pre.current;
+    if (!reader) return;
+    if (mark.current)
+      reader.scrollTop += mark.current.getBoundingClientRect().top - reader.getBoundingClientRect().top - 48;
+    reader.focus({ preventScroll: true });
+    reader.scrollIntoView({ block: "nearest" });
+  }, [location]);
+  const lines = file.content.split("\n").map((line, i) => String(i + 1).padStart(4) + "  " + line);
+  const start = location.line_start || 0,
+    end = location.line_end || start;
   return (
-    <ReadView read={read}>
-      {(file) => (
-        <div className="reader">
-          <div className="reader-head">
-            <strong>{file.path}</strong>
-            <small>{file.commit_sha.slice(0, 8)}</small>
-          </div>
-          <pre tabIndex={0} aria-label={locale === "vi" ? "Mã nguồn kèm số dòng" : "Source code with line numbers"}>
-            {file.content.split("\n").map((line, i) => String(i + 1).padStart(4) + "  " + line).join("\n")}
-          </pre>
-        </div>
-      )}
-    </ReadView>
+    <div className="reader">
+      <div className="reader-head">
+        <strong>{file.path}</strong>
+        <small>{file.commit_sha.slice(0, 8)}</small>
+      </div>
+      <pre
+        ref={pre}
+        tabIndex={0}
+        aria-label={locale === "vi" ? "Mã nguồn kèm số dòng" : "Source code with line numbers"}
+      >
+        {start > 0 && start <= lines.length ? (
+          <>
+            {start > 1 && lines.slice(0, start - 1).join("\n") + "\n"}
+            <mark ref={mark}>{lines.slice(start - 1, end).join("\n")}</mark>
+            {end < lines.length && "\n" + lines.slice(end).join("\n")}
+          </>
+        ) : (
+          lines.join("\n")
+        )}
+      </pre>
+    </div>
   );
 }
 
-export function Files({ repo }: { repo: Repo }) {
+function SourceFile({ id, location }: { id: string; location: SourceLocation }) {
+  const { path, commit_sha } = location;
+  const read = useRead(useCallback(() => api.file(id, path, commit_sha), [id, path, commit_sha]));
+  return <ReadView read={read}>{(file) => <CodeReader file={file} location={location} />}</ReadView>;
+}
+
+export function Files({
+  repo,
+  location,
+  onOpen,
+  cited,
+}: {
+  repo: Repo;
+  location: SourceLocation | null;
+  onOpen: (source: SourceLocation) => void;
+  cited: SourceLocation[];
+}) {
   const { t, locale } = useI18n();
-  const read = useRead(useCallback(() => api.files(repo.id), [repo.id]));
+  const sha = repo.snapshot!.commit_sha;
+  const read = useRead(useCallback(() => api.files(repo.id, sha), [repo.id, sha]));
   const [query, setQuery] = useState("");
-  const [path, setPath] = useState("");
+  const path = location?.path || "";
+  const setPath = (path: string) => onOpen({ path, commit_sha: repo.snapshot!.commit_sha });
 
   return (
     <section className="panel">
@@ -103,32 +189,22 @@ export function Files({ repo }: { repo: Repo }) {
                     placeholder={t.filesFilterPlaceholder}
                     onChange={(e) => setQuery(e.target.value)}
                   />
-                  <div className="file-list">
-                    {matches.length ? (
-                      matches.map((f) => (
-                        <button
-                          className="file"
-                          key={f.id}
-                          aria-pressed={path === f.path}
-                          onClick={() => setPath(f.path)}
-                        >
-                          <span><Icon name="file" size={15}/>{f.path}</span>
-                          <small>
-                            {f.language} · {f.line_count} {t.linesUnit}
-                          </small>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="notice">{t.filesEmpty}</p>
-                    )}
-                  </div>
+                  <FileTree
+                    files={matches}
+                    active={path}
+                    cited={cited}
+                    sha={repo.snapshot!.commit_sha}
+                    filtering={Boolean(query.trim())}
+                    open={setPath}
+                  />
                 </aside>
                 <div>
-                  {path ? (
-                    <SourceFile key={path} id={repo.id} path={path} />
+                  {location ? (
+                    <SourceFile key={location.commit_sha + path} id={repo.id} location={location} />
                   ) : (
                     <p className="notice">{t.filesPrompt}</p>
                   )}
+                  <FileMap files={matches} active={path} open={setPath} />
                 </div>
               </div>
             </>
@@ -181,23 +257,31 @@ export function Ask({ repo }: { repo: Repo }) {
           }}
           placeholder={t.askPlaceholder}
         />
-        <button disabled={busy || question.trim().length < 2}>
-          {busy ? t.btnAsking : t.btnAsk}
-        </button>
+        <button disabled={busy || question.trim().length < 2}>{busy ? t.btnAsking : t.btnAsk}</button>
       </form>
-      {error && <p className="notice error" role="alert">{error}</p>}
+      {error && (
+        <p className="notice error" role="alert">
+          {error}
+        </p>
+      )}
       {result && (
         <div className="result" aria-live="polite">
           <h3>{result.grounded ? t.resultGrounded : t.resultUngrounded}</h3>
           <p className="answer">{result.answer}</p>
           {result.warnings?.map((w, i) => (
-            <p className="notice caution" key={i}>{w}</p>
+            <p className="notice caution" key={i}>
+              {w}
+            </p>
           ))}
           {result.evidence.length > 0 && (
             <ol className="evidence-list">
               {result.evidence.map((e, i) => (
                 <li key={i}>
-                  <a href={sourceUrl(repo, e.commit_sha, e.path, e.line_start, e.line_end)} target="_blank" rel="noreferrer">
+                  <a
+                    href={sourceUrl(repo, e.commit_sha, e.path, e.line_start, e.line_end)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     [E{i + 1}] {e.path} · L{e.line_start}–L{e.line_end}
                   </a>
                   <small>
@@ -225,16 +309,46 @@ export function Timeline({ repo }: { repo: Repo }) {
       <ReadView read={read}>
         {(rows) =>
           rows.length ? (
-            <ol className="history">
+            <ol className="history layers-history" aria-label={t.timelineHeading}>
               {rows.map((commit) => (
                 <li key={commit.sha}>
-                  <code>{commit.short_sha}</code>
+                  <div className="commit-stratum">
+                    <i
+                      style={{
+                        height:
+                          commit.additions == null
+                            ? 3
+                            : Math.min(
+                                34,
+                                3 + Math.log2(1 + commit.additions + (commit.deletions || 0)) * 2.1,
+                              ),
+                        background:
+                          commit.additions == null
+                            ? "var(--rule)"
+                            : "hsl(" +
+                              Array.from(commit.author_name).reduce(
+                                (a, c) => (a * 31 + c.charCodeAt(0)) % 360,
+                                0,
+                              ) +
+                              " 36% 47%)",
+                      }}
+                    />
+                    <code>{commit.short_sha}</code>
+                  </div>
                   <div>
                     <strong>{commit.message}</strong>
                     <small>
-                      {commit.author_name}
+                      {commit.additions == null
+                        ? locale === "vi"
+                          ? "Chưa có thống kê dòng"
+                          : "Line counts unavailable"
+                        : "+" + commit.additions + " / −" + commit.deletions}{" "}
+                      · {commit.author_name}
                       {commit.committed_at &&
-                        " · " + new Date(commit.committed_at).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}
+                        " · " +
+                          new Date(commit.committed_at).toLocaleDateString(
+                            locale === "vi" ? "vi-VN" : "en-US",
+                          )}
                     </small>
                   </div>
                 </li>
@@ -249,111 +363,8 @@ export function Timeline({ repo }: { repo: Repo }) {
   );
 }
 
-export function Graph({ repo }: { repo: Repo }) {
-  const { t } = useI18n();
-  const read = useRead(useCallback(() => api.graph(repo.id), [repo.id]));
-  const [target, setTarget] = useState("");
-  const [impact, setImpact] = useState<ImpactResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function inspect(event: FormEvent) {
-    event.preventDefault();
-    if (busy || !target.trim()) return;
-    setBusy(true);
-    setError("");
-    setImpact(null);
-    try {
-      setImpact(await api.impact(repo.id, target.trim(), 2));
-    } catch (err) {
-      setError(messageOf(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="panel">
-      <h2>{t.graphHeading}</h2>
-      <ReadView read={read}>
-        {(graph) => (
-          <>
-            <p className="muted">{t.graphSubhead}</p>
-            <form className="form-stack" onSubmit={inspect}>
-              <label htmlFor="target">{t.graphTargetLabel}</label>
-              <div className="line-form">
-                <input
-                  id="target"
-                  list="graph-paths"
-                  maxLength={1000}
-                  required
-                  value={target}
-                  readOnly={busy}
-                  onChange={(e) => {
-                    setTarget(e.target.value);
-                    setImpact(null);
-                    setError("");
-                  }}
-                  placeholder={graph.nodes[0]?.path || "src/app.py"}
-                />
-                <button disabled={busy || !target.trim()}>
-                  {busy ? t.btnImpactBusy : t.btnImpact}
-                </button>
-              </div>
-              <datalist id="graph-paths">
-                {graph.nodes.map((n) => (
-                  <option key={n.id} value={n.path} />
-                ))}
-              </datalist>
-            </form>
-            {error && <p className="notice error" role="alert">{error}</p>}
-            {impact && (
-              <div className="result" role="status">
-                <h3>
-                  {impact.affected.length} {t.impactAffectedHeading}
-                </h3>
-                <p className="muted">{impact.target_path}</p>
-                {impact.affected.length > 0 && (
-                  <ul>
-                    {impact.affected.map((p) => (
-                      <li key={p}>
-                        <code>{p}</code>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-            <h3 className="subhead">
-              {t.graphEdgesHeading} ({graph.edges.length})
-            </h3>
-            {graph.edges.length ? (
-              <ul className="edges">
-                {graph.edges.map((edge) => (
-                  <li key={edge.id}>
-                    <div>
-                      <code>{edge.source}</code>
-                      <span aria-label="depends on"> → </span>
-                      <code>{edge.target}</code>
-                    </div>
-                    <small>
-                      {edge.kind} · {edge.evidence_type} · confidence {edge.confidence}
-                    </small>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="notice">{t.graphEdgesEmpty}</p>
-            )}
-          </>
-        )}
-      </ReadView>
-    </section>
-  );
-}
-
-export function Findings({ repo }: { repo: Repo }) {
-  const { t } = useI18n();
+export function Findings({ repo, onOpen }: { repo: Repo; onOpen: (location: SourceLocation) => void }) {
+  const { t, locale } = useI18n();
   const read = useRead(useCallback(() => api.findings(repo.id), [repo.id]));
   const order = { high: 0, medium: 1, info: 2 };
 
@@ -369,12 +380,43 @@ export function Findings({ repo }: { repo: Repo }) {
                 .sort((a, b) => order[a.severity] - order[b.severity])
                 .map((f) => (
                   <li key={f.id}>
-                    <Status value={f.severity} />
+                    <span className="depth" data-depth={3 - order[f.severity]}>
+                      <span aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                      {(t.status as Record<string, string>)[f.severity] || f.severity}
+                    </span>
                     <h3>{f.title}</h3>
                     <p>{f.description}</p>
+                    {f.excerpt?.length > 0 && (
+                      <pre className="snippet">
+                        {f.excerpt
+                          .map((line, i) => String((f.line_start || 1) + i).padStart(3) + "  " + line)
+                          .join("\n")}
+                      </pre>
+                    )}
+                    {f.evidence_path && (
+                      <button
+                        className="quiet small"
+                        onClick={() =>
+                          onOpen({
+                            path: f.evidence_path!,
+                            commit_sha: f.commit_sha,
+                            line_start: f.line_start,
+                            line_end: f.line_end,
+                          })
+                        }
+                      >
+                        <Icon name="file" size={14} />
+                        {locale === "vi" ? "Mở trong trình duyệt tệp" : "Open in file explorer"}
+                      </button>
+                    )}
                     {f.evidence_path && (
                       <a
-                        href={sourceUrl(repo, repo.snapshot!.commit_sha, f.evidence_path, f.line_start, f.line_end)}
+                        className="finding-link"
+                        href={sourceUrl(repo, f.commit_sha, f.evidence_path, f.line_start, f.line_end)}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -426,8 +468,8 @@ export function PullRequests({ repo }: { repo: Repo }) {
                       {pr.merged_at
                         ? ` · ${t.pullsMerged} ${new Date(pr.merged_at).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}`
                         : pr.created_at_gh
-                        ? ` · ${t.pullsCreated} ${new Date(pr.created_at_gh).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}`
-                        : ""}
+                          ? ` · ${t.pullsCreated} ${new Date(pr.created_at_gh).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}`
+                          : ""}
                     </small>
                   </div>
                 </li>

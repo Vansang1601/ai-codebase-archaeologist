@@ -1,7 +1,9 @@
 import React from "react";
 import type { Metadata } from "next";
 import "./globals.css";
+import "./excavation.css";
 import Header from "./components/Header";
+import { ChatProvider } from "./components/ChatProvider";
 import { I18nProvider } from "../lib/i18n";
 
 export const metadata: Metadata = {
@@ -17,10 +19,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                const tone = localStorage.getItem('tone');
-                if (['forest', 'ocean', 'iris', 'amber'].includes(tone)) {
-                  document.documentElement.dataset.tone = tone;
-                }
                 const theme = localStorage.getItem('theme');
                 if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.documentElement.classList.add('dark');
@@ -34,8 +32,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <I18nProvider>
-          <Header />
-          <main id="main-content" tabIndex={-1}>{children}</main>
+          <ChatProvider>
+            <Header />
+            <main id="main-content" tabIndex={-1}>{children}</main>
+          </ChatProvider>
         </I18nProvider>
       </body>
     </html>

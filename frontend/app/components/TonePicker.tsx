@@ -13,7 +13,7 @@ const tones = [
 
 export default function TonePicker() {
   const { locale } = useI18n();
-  const [tone, setTone] = useState("ocean");
+  const [tone, setTone] = useState("forest");
   const label = locale === "vi" ? "Tông màu" : "Color palette";
 
   useEffect(() => {

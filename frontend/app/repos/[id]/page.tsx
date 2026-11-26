@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { api, type JobInfo, type Repo } from "../../../lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { api, type JobInfo, type SourceLocation, type Repo } from "../../../lib/api";
 import { useI18n } from "../../../lib/i18n";
 import { Files, Findings, Graph, Overview, PullRequests, Timeline } from "../../components/RepoPanels";
 import Icon from "../../components/Icon";
-import FloatingChat from "../../components/FloatingChat";
+import StrataFigure from "../../components/StrataFigure";
+import { useChat } from "../../components/ChatProvider";
 import { messageOf, Status } from "../../components/WorkspaceUI";
 
 function ongoing(status?: string) {
@@ -21,7 +22,31 @@ function Workspace({ id }: { id: string }) {
   const [job, setJob] = useState<JobInfo | null>(null);
   const [tab, setTab] = useState(0);
   const [fromLibrary, setFromLibrary] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const chat = useChat();
+  const { setOpen: setChatOpen, setWorkspace, pending, setPending } = chat;
+  const [location, setLocation] = useState<SourceLocation | null>(null);
+  const [cited, setCited] = useState<SourceLocation[]>([]);
+  const openSource = useCallback((source:SourceLocation) => {
+    setLocation(source);
+    setTab(1);
+    setChatOpen(false);
+  }, [setChatOpen]);
+
+  // Share this page's repository with the site-wide chat so citations open here.
+  useEffect(() => {
+    if (!repo?.snapshot) return;
+    setWorkspace({ repo, onOpenSource: openSource, onCitations: setCited });
+    return () => setWorkspace(null);
+  }, [repo, openSource, setWorkspace]);
+
+  // A citation opened from the chat on another page lands here already selected.
+  useEffect(() => {
+    if (!pending || pending.repoId !== id || !repo?.snapshot) return;
+    setLocation(pending.source);
+    setCited(pending.cited);
+    setTab(1);
+    setPending(null);
+  }, [pending, id, repo, setPending]);
   const [revision, setRevision] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -47,7 +72,8 @@ function Workspace({ id }: { id: string }) {
         const data = await api.repo(id);
         if (!current) return;
         setRepo(data);
-        const active = jobId ? await api.job(jobId) : null;
+        const active = jobId ? await api.job(jobId) : data.active_job;
+        if (!jobId && active) jobId = active.id;
         if (!current) return;
         if (active && active.repository_id !== id) jobId = null;
         const related = active?.repository_id === id ? active : null;
@@ -135,6 +161,8 @@ function Workspace({ id }: { id: string }) {
       {errorBox}
 
       {job && (ongoing(job.status) || job.status === "failed") && (
+        <div className="job-section">
+        <StrataFigure expanded={ongoing(job.status)} phase={job.phase}/>
         <div className="job" role="status">
           <div>
             <strong>{phaseLabel}</strong>
@@ -142,9 +170,10 @@ function Workspace({ id }: { id: string }) {
           </div>
           <progress value={job.progress} max={100} aria-label={vi ? "Tiến độ phân tích" : "Indexing progress"} />
           {job.error && <p className="notice error">{job.error}</p>}
-        </div>
+        </div></div>
       )}
 
+      {job?.phase==="snapshot_reused" && <p className="notice" role="status">{vi ? "Commit này đã được phân tích. Đang hiển thị kết quả đã lưu." : "This commit has already been indexed. Showing its saved results."}</p>}
       {repo.snapshot ? (
         <>
           <div className="sections-container">
@@ -162,8 +191,7 @@ function Workspace({ id }: { id: string }) {
             </nav>
 
           </div>
-          <ActivePanel key={repo.snapshot.id} repo={repo} />
-          <FloatingChat key={repo.snapshot.id} repo={repo} isOpen={chatOpen} onToggle={setChatOpen} />
+          <ActivePanel key={repo.snapshot.id} repo={repo} location={location} onOpen={openSource} cited={cited} />
         </>
       ) : (
         <div className="panel">

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -125,7 +126,7 @@ export default function ProfilePage() {
         <div className="profile-hero-content">
           <div className="profile-avatar-wrap">
             {user?.avatar_url ? (
-              <img src={user.avatar_url} alt="" className="profile-avatar-img" />
+              <Image src={user.avatar_url} width={68} height={68} alt="" className="profile-avatar-img" unoptimized />
             ) : (
               <div className="profile-avatar-fallback">{initials}</div>
             )}

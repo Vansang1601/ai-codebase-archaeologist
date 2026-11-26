@@ -18,7 +18,7 @@ from .dependencies import build_dependencies
 from .chunking import make_chunks
 from .vectorizer import hash_vector
 from .findings import build_findings
-from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, Chunk, CommitRecord, Finding, PullRequest
+from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, Chunk, CommitChangeStat, CommitRecord, Finding, PullRequest
 
 
 def update_job(db: Session, job: AnalysisJob, phase: str, progress: int):
@@ -95,6 +95,28 @@ def sync_pull_requests(db: Session, repo: Repository, job: AnalysisJob, snapshot
         job.pr_status = "failed"
 
 
+def store_history(db: Session, repo_id: str, workdir: Path, limit: int):
+    history = read_history(workdir, limit)
+    hashes = [item.sha for item in history]
+    records = {record.sha: record for record in db.scalars(select(CommitRecord).where(
+        CommitRecord.repository_id == repo_id, CommitRecord.sha.in_(hashes)
+    ))}
+    for item in history:
+        if item.sha not in records:
+            record = CommitRecord(repository_id=repo_id, sha=item.sha, author_name=item.author_name,
+                                  message=item.message, committed_at=item.committed_at)
+            db.add(record)
+            records[item.sha] = record
+    db.flush()
+    existing = set(db.scalars(select(CommitChangeStat.commit_id).where(
+        CommitChangeStat.commit_id.in_([record.id for record in records.values()])
+    )))
+    for item in history:
+        commit_id = records[item.sha].id
+        if commit_id not in existing and item.additions is not None and item.deletions is not None:
+            db.add(CommitChangeStat(commit_id=commit_id, additions=item.additions, deletions=item.deletions))
+
+
 def run_job(db: Session, job: AnalysisJob):
     settings = get_settings()
     repo = db.get(Repository, job.repository_id)
@@ -106,16 +128,30 @@ def run_job(db: Session, job: AnalysisJob):
         sha, branch = clone_repository(repo.canonical_url, workdir, job.requested_ref)
 
         snapshot = db.scalar(select(Snapshot).where(Snapshot.repository_id == repo.id, Snapshot.commit_sha == sha))
-        if snapshot:
-            # Reuse an immutable completed snapshot rather than mixing versions.
+        if snapshot and snapshot.status == "ready":
+            # Existing installations can populate line counts on their first re-sync.
+            has_stats = db.scalar(select(CommitChangeStat.commit_id).join(
+                CommitRecord, CommitRecord.id == CommitChangeStat.commit_id
+            ).where(CommitRecord.repository_id == repo.id).limit(1))
+            if not has_stats:
+                store_history(db, repo.id, workdir, settings.max_history_commits)
             job.snapshot_id = snapshot.id
             job.status = "completed"
-            job.phase = "completed"
+            job.phase = "snapshot_reused"
             job.progress = 100
             repo.status = "ready"
             db.commit()
             return
 
+        if snapshot:
+            active = db.scalar(select(AnalysisJob.id).where(
+                AnalysisJob.snapshot_id == snapshot.id, AnalysisJob.status == "running", AnalysisJob.id != job.id
+            ).limit(1))
+            if active:
+                raise RuntimeError("Another job is building this revision")
+            # A previous failed attempt can leave rows committed before indexing finished.
+            db.delete(snapshot)
+            db.flush()
         snapshot = Snapshot(repository_id=repo.id, commit_sha=sha, branch=branch, status="building")
         db.add(snapshot)
         db.flush()
@@ -182,13 +218,7 @@ def run_job(db: Session, job: AnalysisJob):
         db.flush()
 
         update_job(db, job, "history_mapping", 78)
-        for c in read_history(workdir, settings.max_history_commits):
-            exists = db.scalar(select(CommitRecord).where(CommitRecord.repository_id == repo.id, CommitRecord.sha == c.sha))
-            if not exists:
-                db.add(CommitRecord(
-                    repository_id=repo.id, sha=c.sha, author_name=c.author_name,
-                    message=c.message, committed_at=c.committed_at,
-                ))
+        store_history(db, repo.id, workdir, settings.max_history_commits)
 
         update_job(db, job, "pull_requests", 85)
         sync_pull_requests(db, repo, job, snapshot)

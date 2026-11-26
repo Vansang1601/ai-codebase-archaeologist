@@ -11,7 +11,7 @@ from typing import Optional
 
 from .config import get_settings
 from .database import Base, engine, get_db
-from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitRecord, Finding, PullRequest, Chunk
+from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitChangeStat, CommitRecord, Finding, PullRequest, Chunk
 from .schemas import RepositoryCreate, SyncRequest, QuestionRequest, ImpactRequest, AnswerOut, EvidenceOut
 from .security import canonicalize_github_url, RepositoryUrlError
 from .retrieval import retrieve, evidence_url, latest_snapshot
@@ -154,8 +154,15 @@ def get_repository(repo_id: str, db: Session = Depends(get_db), user: Optional[U
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    snap = latest_snapshot(db, repo_id)
+    snapshots = db.scalars(select(Snapshot).where(
+        Snapshot.repository_id == repo_id, Snapshot.status == "ready"
+    ).order_by(Snapshot.created_at.desc(), Snapshot.id.desc()).limit(12)).all()
+    active = db.scalar(select(AnalysisJob).where(AnalysisJob.repository_id == repo_id,
+        AnalysisJob.status.in_(["running", "queued"])).order_by(AnalysisJob.created_at.desc()).limit(1)) if repo.status in ("queued", "running") else None
+    snap = snapshots[0] if snapshots else None
     return {
+        "active_job": _job_dict(active) if active else None,
+        "snapshot_history": [_snapshot_dict(row) for row in reversed(snapshots)],
         "id": repo.id,
         "owner": repo.owner,
         "name": repo.name,
@@ -165,19 +172,28 @@ def get_repository(repo_id: str, db: Session = Depends(get_db), user: Optional[U
     }
 
 
+def _read_snapshot(db: Session, repo_id: str, commit_sha: str | None) -> Snapshot:
+    snapshot = latest_snapshot(db, repo_id) if commit_sha is None else db.scalar(
+        select(Snapshot).where(Snapshot.repository_id == repo_id, Snapshot.commit_sha == commit_sha, Snapshot.status == "ready")
+    )
+    if commit_sha is not None and not snapshot:
+        raise HTTPException(status_code=404, detail="Cited revision not found")
+    if not snapshot:
+        raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
+    return snapshot
+
+
 @app.get("/api/repos/{repo_id}/files")
-def get_files(repo_id: str, limit: int = Query(default=200, ge=1, le=1000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+def get_files(repo_id: str, limit: int = Query(default=200, ge=1, le=1000), offset: int = Query(default=0, ge=0),
+              commit_sha: str | None = None, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    snapshot = latest_snapshot(db, repo_id)
-    if not snapshot:
-        raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
-    rows = db.scalars(
-        select(CodeFile).where(CodeFile.snapshot_id == snapshot.id).order_by(CodeFile.path.asc()).limit(limit)
-    ).all()
+    snapshot = _read_snapshot(db, repo_id, commit_sha)
+    rows = db.execute(select(CodeFile.id, CodeFile.path, CodeFile.language, CodeFile.size_bytes, CodeFile.line_count,
+        CodeFile.content_hash).where(CodeFile.snapshot_id == snapshot.id).order_by(CodeFile.path).offset(offset).limit(limit)).all()
     return [{
         "id": f.id, "path": f.path, "language": f.language, "size_bytes": f.size_bytes,
         "line_count": f.line_count, "content_hash": f.content_hash,
@@ -185,15 +201,13 @@ def get_files(repo_id: str, limit: int = Query(default=200, ge=1, le=1000), db: 
 
 
 @app.get("/api/repos/{repo_id}/file")
-def get_file(repo_id: str, path: str = Query(min_length=1, max_length=1000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+def get_file(repo_id: str, path: str = Query(min_length=1, max_length=1000), commit_sha: str | None = None, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    snapshot = latest_snapshot(db, repo_id)
-    if not snapshot:
-        raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
+    snapshot = _read_snapshot(db, repo_id, commit_sha)
     # Database lookup only: user input is never interpreted as a filesystem path.
     row = db.scalar(select(CodeFile).where(CodeFile.snapshot_id == snapshot.id, CodeFile.path == path).limit(1))
     if not row:
@@ -261,36 +275,43 @@ def timeline(repo_id: str, limit: int = Query(default=100, ge=1, le=300), db: Se
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    commits = db.scalars(
-        select(CommitRecord).where(CommitRecord.repository_id == repo_id)
+    commits = db.execute(
+        select(CommitRecord, CommitChangeStat).outerjoin(CommitChangeStat, CommitChangeStat.commit_id == CommitRecord.id).where(CommitRecord.repository_id == repo_id)
         .order_by(CommitRecord.committed_at.desc()).limit(limit)
     ).all()
     return [{
         "sha": c.sha, "short_sha": c.sha[:8], "author_name": c.author_name,
         "message": c.message, "committed_at": c.committed_at,
-    } for c in commits]
+        "additions": stat.additions if stat else None, "deletions": stat.deletions if stat else None,
+    } for c, stat in commits]
 
 
 @app.get("/api/repos/{repo_id}/graph")
-def graph(repo_id: str, limit: int = Query(default=500, ge=1, le=2000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+def graph(repo_id: str, focus: str | None = None, commit_sha: str | None = None, limit: int = Query(default=500, ge=1, le=2000), db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     repo = db.get(Repository, repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    snapshot = latest_snapshot(db, repo_id)
-    if not snapshot:
-        raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
-    deps = db.scalars(
-        select(Dependency).where(Dependency.snapshot_id == snapshot.id).limit(limit)
-    ).all()
+    snapshot = _read_snapshot(db, repo_id, commit_sha)
+    query = select(Dependency).where(Dependency.snapshot_id == snapshot.id)
+    if focus:
+        query = query.where((Dependency.source_path == focus) | (Dependency.target_path == focus))
+    deps = db.scalars(query.order_by(Dependency.source_path, Dependency.target_path, Dependency.id).limit(limit)).all()
+    # Lightweight path index also covers isolated files and nodes outside the edge budget.
+    paths = select(CodeFile.path).where(CodeFile.snapshot_id == snapshot.id).union(
+        select(Dependency.source_path).where(Dependency.snapshot_id == snapshot.id),
+        select(Dependency.target_path).where(Dependency.snapshot_id == snapshot.id))
+    all_paths = sorted(db.scalars(paths).all())
     node_paths = sorted({d.source_path for d in deps} | {d.target_path for d in deps})
+    if focus in all_paths and focus not in node_paths:
+        node_paths.append(focus)
     nodes = [{"id": p, "label": p.split("/")[-1], "path": p} for p in node_paths]
     edges = [{
         "id": d.id, "source": d.source_path, "target": d.target_path,
         "kind": d.kind, "evidence_type": d.evidence_type, "confidence": d.confidence,
     } for d in deps]
-    return {"snapshot_sha": snapshot.commit_sha, "nodes": nodes, "edges": edges}
+    return {"snapshot_sha": snapshot.commit_sha, "nodes": nodes, "edges": edges, "all_paths": all_paths}
 
 
 @app.post("/api/repos/{repo_id}/impact")
@@ -300,15 +321,14 @@ def impact(repo_id: str, payload: ImpactRequest, db: Session = Depends(get_db), 
         raise HTTPException(status_code=404, detail="Repository not found")
     if user is not None:
         require_repo_access(repo, user)
-    snapshot = latest_snapshot(db, repo_id)
-    if not snapshot:
-        raise HTTPException(status_code=409, detail="Repository has no completed snapshot")
+    snapshot = _read_snapshot(db, repo_id, payload.commit_sha)
     deps = db.scalars(select(Dependency).where(Dependency.snapshot_id == snapshot.id)).all()
     reverse: dict[str, set[str]] = {}
     for dep in deps:
         reverse.setdefault(dep.target_path, set()).add(dep.source_path)
     if payload.target_path not in reverse and payload.target_path not in {d.source_path for d in deps}:
-        raise HTTPException(status_code=404, detail="Target path does not exist in dependency graph")
+        if not db.scalar(select(CodeFile.id).where(CodeFile.snapshot_id == snapshot.id, CodeFile.path == payload.target_path)):
+            raise HTTPException(status_code=404, detail="Target path does not exist in dependency graph")
     visited = {payload.target_path}
     frontier = [(payload.target_path, [payload.target_path], 0)]
     paths = []
@@ -343,7 +363,23 @@ def findings(repo_id: str, db: Session = Depends(get_db), user: Optional[User] =
     rows = db.scalars(
         select(Finding).where(Finding.snapshot_id == snapshot.id).order_by(Finding.severity.desc(), Finding.kind.asc())
     ).all()
+    # Keep only cited windows in memory, even when many findings reference large files.
+    windows = {}
+    for row in rows:
+        if row.evidence_path and row.line_start:
+            windows.setdefault(row.evidence_path, []).append(row)
+    snippets = {}
+    if windows:
+        files = select(CodeFile.path, CodeFile.content).where(
+            CodeFile.snapshot_id == snapshot.id, CodeFile.path.in_(windows)
+        ).execution_options(yield_per=8)
+        for path, content in db.execute(files):
+            lines = content.splitlines()
+            for row in windows[path]:
+                end = min(row.line_start + 3, row.line_end or row.line_start)
+                snippets[row.id] = [line[:240] for line in lines[row.line_start - 1:end]]
     return [{
+        "excerpt": snippets.get(x.id, []), "commit_sha": snapshot.commit_sha,
         "id": x.id, "kind": x.kind, "severity": x.severity, "title": x.title,
         "description": x.description, "evidence_path": x.evidence_path,
         "line_start": x.line_start, "line_end": x.line_end,

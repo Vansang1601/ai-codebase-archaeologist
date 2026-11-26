@@ -1,10 +1,6 @@
-import SupportContacts from "./SupportContacts";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default function SupportPage() {
-  return <SupportContacts
-    email={process.env.SUPPORT_EMAIL?.trim()}
-    phone={process.env.SUPPORT_PHONE?.trim()}
-    github={process.env.SUPPORT_GITHUB?.trim()}/>;
+// The Support tab was merged into the bottom of the home page.
+export default function LegacySupportPage() {
+  redirect("/#support");
 }

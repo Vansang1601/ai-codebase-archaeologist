@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, setToken } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
 import { messageOf, ReadView, useRead } from "../components/WorkspaceUI";
@@ -13,7 +13,7 @@ export default function LoginPage() {
   const { t, locale } = useI18n();
   const vi = locale === "vi";
   const router = useRouter();
-  const auth = useRead(useCallback(api.authStatus, []));
+  const auth = useRead(api.authStatus);
   const [email, setEmail] = useState("developer@example.com");
   const [name, setName] = useState("Developer");
   const [busy, setBusy] = useState("");

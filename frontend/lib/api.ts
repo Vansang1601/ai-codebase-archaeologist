@@ -35,6 +35,8 @@ export interface Repo {
   name: string;
   canonical_url: string;
   status: string;
+  active_job?: JobInfo | null;
+  snapshot_history?: Snapshot[];
   snapshot?: Snapshot | null;
 }
 
@@ -88,7 +90,16 @@ export interface AskResult {
   warnings?: string[];
 }
 
+export interface SourceLocation {
+  path: string;
+  commit_sha: string;
+  line_start?: number | null;
+  line_end?: number | null;
+}
+
 export interface TimelineCommit {
+  additions: number | null;
+  deletions: number | null;
   sha: string;
   short_sha: string;
   author_name: string;
@@ -112,6 +123,7 @@ export interface GraphEdge {
 }
 
 export interface GraphData {
+  all_paths: string[];
   snapshot_sha: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -149,6 +161,8 @@ export interface UserProfile {
 }
 
 export interface FindingItem {
+  excerpt: string[];
+  commit_sha: string;
   id: string;
   kind: string;
   severity: "info" | "medium" | "high";
@@ -222,10 +236,19 @@ export const api = {
 
   job: (id: string) => request<JobInfo>(`/api/jobs/${id}`),
 
-  files: (id: string) => request<CodeFileInfo[]>(`/api/repos/${id}/files?limit=1000`),
+  async files(id: string, sha: string) {
+    const files: CodeFileInfo[] = [];
+    const limit = 1000;
+    for (;;) {
+      const query = new URLSearchParams({commit_sha:sha, limit:String(limit), offset:String(files.length)});
+      const page = await request<CodeFileInfo[]>(`/api/repos/${id}/files?${query}`);
+      files.push(...page);
+      if (page.length < limit) return files;
+    }
+  },
 
-  file: (id: string, path: string) =>
-    request<FileDetail>(`/api/repos/${id}/file?path=${encodeURIComponent(path)}`),
+  file: (id: string, path: string, sha?: string) =>
+    request<FileDetail>(`/api/repos/${id}/file?${new URLSearchParams({ path, ...(sha ? { commit_sha: sha } : {}) })}`),
 
   ask: (
     id: string,
@@ -239,12 +262,12 @@ export const api = {
 
   timeline: (id: string) => request<TimelineCommit[]>(`/api/repos/${id}/timeline?limit=100`),
 
-  graph: (id: string) => request<GraphData>(`/api/repos/${id}/graph?limit=1000`),
+  graph: (id: string, sha: string, focus = "") => request<GraphData>(`/api/repos/${id}/graph?${new URLSearchParams({ limit: "1000", commit_sha:sha, ...(focus ? { focus } : {}) })}`),
 
-  impact: (id: string, target_path: string, depth = 2) =>
+  impact: (id: string, target_path: string, depth = 2, commit_sha?:string) =>
     request<ImpactResult>(`/api/repos/${id}/impact`, {
       method: "POST",
-      body: JSON.stringify({ target_path, depth })
+      body: JSON.stringify({ target_path, depth, commit_sha })
     }),
 
   findings: (id: string) => request<FindingItem[]>(`/api/repos/${id}/findings`),

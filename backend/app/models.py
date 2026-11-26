@@ -123,6 +123,13 @@ class CommitRecord(Base):
     committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class CommitChangeStat(Base):
+    __tablename__ = "commit_change_stats"
+    commit_id: Mapped[str] = mapped_column(ForeignKey("commit_records.id", ondelete="CASCADE"), primary_key=True)
+    additions: Mapped[int] = mapped_column(Integer)
+    deletions: Mapped[int] = mapped_column(Integer)
+
+
 class Finding(Base):
     __tablename__ = "findings"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

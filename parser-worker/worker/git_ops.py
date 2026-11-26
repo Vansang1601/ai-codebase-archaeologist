@@ -2,6 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import os
+import re
 import shutil
 import subprocess
 from .config import get_settings
@@ -14,6 +16,8 @@ class CommitInfo:
     author_name: str
     message: str
     committed_at: datetime | None
+    additions: int | None = None
+    deletions: int | None = None
 
 
 def _run(args: list[str], cwd: Path | None = None, timeout: int | None = None) -> str:
@@ -28,6 +32,7 @@ def _run(args: list[str], cwd: Path | None = None, timeout: int | None = None) -
         timeout=timeout,
         check=False,
         shell=False,
+        env={**os.environ, "LC_ALL": "C"},
     )
     if completed.returncode != 0:
         safe_err = completed.stderr.strip().splitlines()[-1:] or ["git command failed"]
@@ -56,20 +61,37 @@ def clone_repository(url: str, destination: Path, requested_ref: str | None = No
 
 
 def read_history(repo_dir: Path, limit: int) -> list[CommitInfo]:
-    fmt = "%H%x1f%an%x1f%aI%x1f%s%x1e"
-    raw = _run(["git", "log", f"-n{limit}", f"--pretty=format:{fmt}"], cwd=repo_dir, timeout=30)
+    # Git treats a shallow boundary as a root; its whole tree is not a real change.
+    shallow_file = repo_dir / ".git" / "shallow"
+    shallow = set(shallow_file.read_text().splitlines()) if shallow_file.is_file() else set()
+    fmt = "%x1e%H%x1f%an%x1f%aI%x1f%P%x1f%s%x00"
+    command = ["git", "log", f"-n{limit}", f"--pretty=format:{fmt}"]
+    have_stats = True
+    try:
+        raw = _run(command + ["--shortstat", "--find-renames"], cwd=repo_dir, timeout=60)
+    except subprocess.TimeoutExpired:
+        # Large diffs should not prevent the rest of a repository from being indexed.
+        have_stats = False
+        raw = _run(command, cwd=repo_dir, timeout=30)
     items: list[CommitInfo] = []
     for record in raw.split("\x1e"):
-        record = record.strip()
-        if not record:
+        header, marker, stat = record.partition("\x00")
+        if not marker:
             continue
-        parts = record.split("\x1f")
-        if len(parts) < 4:
+        parts = header.lstrip().split("\x1f", 4)
+        if len(parts) != 5:
             continue
-        sha, author, iso, message = parts[0], parts[1], parts[2], parts[3]
+        sha, author, iso, parents, message = parts
+        additions = deletions = None
+        if have_stats and sha not in shallow and len(parents.split()) <= 1:
+            added = re.search(r"(\d+) insertion", stat)
+            removed = re.search(r"(\d+) deletion", stat)
+            additions = int(added[1]) if added else 0
+            deletions = int(removed[1]) if removed else 0
         try:
             dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
         except Exception:
             dt = None
-        items.append(CommitInfo(sha=sha, author_name=author, message=message, committed_at=dt))
+        items.append(CommitInfo(sha=sha, author_name=author, message=message, committed_at=dt,
+                                additions=additions, deletions=deletions))
     return items
