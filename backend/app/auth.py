@@ -39,6 +39,30 @@ def create_access_token(user_id: str, tenant_id: str | None = None) -> str:
     return jwt.encode(payload, settings.auth_secret, algorithm=ALGORITHM)
 
 
+def create_magic_link_token(email: str, name: str | None = None, expires_minutes: int = 15) -> str:
+    """Create a short-lived signed JWT for one-click magic-link sign-in."""
+    settings = get_settings()
+    if not settings.auth_secret:
+        raise RuntimeError("AUTH_SECRET is not configured")
+    now = _dt.datetime.now(_dt.timezone.utc)
+    payload = {
+        "purpose": "magic_link",
+        "email": email,
+        "name": name,
+        "iat": now,
+        "exp": now + _dt.timedelta(minutes=expires_minutes),
+    }
+    return jwt.encode(payload, settings.auth_secret, algorithm=ALGORITHM)
+
+
+def verify_magic_link_token(token: str) -> dict:
+    """Decode and validate a magic-link token."""
+    payload = _decode_token(token)
+    if payload.get("purpose") != "magic_link" or not payload.get("email"):
+        raise HTTPException(status_code=401, detail="Invalid magic link token")
+    return payload
+
+
 def _decode_token(token: str) -> dict:
     settings = get_settings()
     if not settings.auth_secret:

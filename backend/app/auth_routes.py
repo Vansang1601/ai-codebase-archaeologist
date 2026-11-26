@@ -26,7 +26,14 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import create_access_token, get_current_user, get_user_tenant_id
+from .auth import (
+    create_access_token,
+    create_magic_link_token,
+    get_current_user,
+    get_current_user_optional,
+    get_user_tenant_id,
+    verify_magic_link_token,
+)
 from .auth_models import User, Tenant, TenantMember, AuthAccount, GitHubInstallation
 from .config import get_settings
 from .database import get_db
@@ -53,6 +60,11 @@ class OAuthCallbackRequest(BaseModel):
 class GitHubInstallRequest(BaseModel):
     installation_id: int
     github_account: str
+
+
+class MagicLinkRequest(BaseModel):
+    email: str
+    name: str | None = None
 
 
 class TokenResponse(BaseModel):
@@ -183,9 +195,11 @@ def _exchange_oauth_profile(
                 data=token_data_req,
                 headers={"Accept": "application/json"},
             )
-            access_token = token_resp.json().get("access_token")
+            token_payload = token_resp.json()
+            access_token = token_payload.get("access_token")
             if not access_token:
-                raise HTTPException(status_code=400, detail="github_token_failed")
+                gh_err = token_payload.get("error")
+                raise HTTPException(status_code=400, detail=f"github_{gh_err}" if gh_err else "github_token_failed")
 
             gh_headers = {"Authorization": f"Bearer {access_token}", "User-Agent": "AI-Codebase-Archaeologist"}
             gh_user = client.get("https://api.github.com/user", headers=gh_headers).json()
@@ -214,9 +228,11 @@ def _exchange_oauth_profile(
                     "redirect_uri": callback_url,
                 },
             )
-            access_token = token_resp.json().get("access_token")
+            token_payload = token_resp.json()
+            access_token = token_payload.get("access_token")
             if not access_token:
-                raise HTTPException(status_code=400, detail="google_token_failed")
+                g_err = token_payload.get("error")
+                raise HTTPException(status_code=400, detail=f"google_{g_err}" if g_err else "google_token_failed")
 
             g_user = client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -296,6 +312,21 @@ def oauth_callback(provider: str, payload: OAuthCallbackRequest, db: Session = D
     return TokenResponse(access_token=jwt_token, user_id=user.id, tenant_id=tenant_id)
 
 
+def _build_session_redirect(origin: str, jwt_token: str) -> RedirectResponse:
+    """Redirect to /login with the JWT fragment and set the session cookie."""
+    # The sign-in page consumes the fragment before opening the library.
+    response = RedirectResponse(url=f"{origin}/login#session_token={jwt_token}", status_code=302)
+    response.set_cookie(
+        key="session_token",
+        value=jwt_token,
+        httponly=False,
+        samesite="lax",
+        secure=origin.startswith("https://"),
+        max_age=60 * 60 * 24 * 7,
+    )
+    return response
+
+
 # ------------------------------------------------------------------
 # GET /api/auth/oauth/{provider}/callback - real browser redirect from GitHub/Google
 # ------------------------------------------------------------------
@@ -326,18 +357,59 @@ def oauth_browser_callback(
 
     user, tenant_id = _upsert_oauth_user(db, provider, provider_id, email, name, avatar_url)
     jwt_token = create_access_token(user.id, tenant_id)
+    return _build_session_redirect(origin, jwt_token)
 
-    # The sign-in page consumes the fragment before opening the library.
-    response = RedirectResponse(url=f"{origin}/login#session_token={jwt_token}", status_code=302)
-    response.set_cookie(
-        key="session_token",
-        value=jwt_token,
-        httponly=False,
-        samesite="lax",
-        secure=origin.startswith("https://"),
-        max_age=60 * 60 * 24 * 7,
-    )
-    return response
+
+# ------------------------------------------------------------------
+# POST /api/auth/magic-link & GET /api/auth/magic-link/verify
+# ------------------------------------------------------------------
+@router.post("/magic-link")
+def create_magic_link(
+    payload: MagicLinkRequest,
+    request: Request,
+    current_user: User | None = Depends(get_current_user_optional),
+):
+    settings = get_settings()
+    is_prod = settings.environment.lower() == "production"
+    if (is_prod or not settings.allow_dev_login) and not current_user:
+        raise HTTPException(
+            status_code=403,
+            detail="Magic-link generation requires an active session when dev login is disabled",
+        )
+    if not settings.auth_secret:
+        raise HTTPException(status_code=503, detail="AUTH_SECRET not configured")
+
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address")
+
+    expires_minutes = 15
+    magic_token = create_magic_link_token(email=email, name=(payload.name or "").strip() or None, expires_minutes=expires_minutes)
+    origin = _public_origin(request, settings)
+    return {
+        "login_url": f"{origin}/api/auth/magic-link/verify?token={magic_token}",
+        "expires_in_seconds": expires_minutes * 60,
+    }
+
+
+@router.get("/magic-link/verify")
+def verify_magic_link(
+    request: Request,
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    settings = get_settings()
+    origin = _public_origin(request, settings)
+    try:
+        payload = verify_magic_link_token(token)
+    except HTTPException:
+        return RedirectResponse(url=f"{origin}/login?error=invalid_magic_link")
+
+    email = str(payload["email"]).strip().lower()
+    name = payload.get("name")
+    user, tenant_id = _upsert_oauth_user(db, "magic_link", None, email, name, None)
+    jwt_token = create_access_token(user.id, tenant_id)
+    return _build_session_redirect(origin, jwt_token)
 
 
 # ------------------------------------------------------------------

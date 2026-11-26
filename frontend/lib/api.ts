@@ -304,6 +304,12 @@ export const api = {
       body: JSON.stringify({ email, name })
     }),
 
+  createMagicLink: (email: string, name?: string) =>
+    request<{ login_url: string; expires_in_seconds: number }>("/api/auth/magic-link", {
+      method: "POST",
+      body: JSON.stringify({ email, name })
+    }),
+
   me: () => request<UserProfile>("/api/auth/me"),
 
   updateProfile: (data: { name?: string; preferred_locale?: string }) =>
