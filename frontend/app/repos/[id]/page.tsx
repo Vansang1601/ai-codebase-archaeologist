@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api, type JobInfo, type SourceLocation, type Repo } from "../../../lib/api";
 import { useI18n } from "../../../lib/i18n";
-import { Files, Findings, Graph, Overview, PullRequests, Timeline } from "../../components/RepoPanels";
+import { Files, Findings, Graph, Overview, PullRequests, Timeline, Ask } from "../../components/RepoPanels";
 import Icon from "../../components/Icon";
 import StrataFigure from "../../components/StrataFigure";
 import { useChat } from "../../components/ChatProvider";
@@ -49,11 +49,13 @@ function Workspace({ id }: { id: string }) {
   }, [pending, id, repo, setPending]);
   const [revision, setRevision] = useState(0);
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   const tabDefs = [
     { label: t.tabOverview, Component: Overview, icon: "overview" },
     { label: t.tabFiles, Component: Files, icon: "file" },
+    { label: t.tabAsk, Component: Ask, icon: "quote" },
     { label: t.tabTimeline, Component: Timeline, icon: "clock" },
     { label: t.tabGraph, Component: Graph, icon: "graph" },
     { label: t.tabFindings, Component: Findings, icon: "audit" },
@@ -111,6 +113,20 @@ function Workspace({ id }: { id: string }) {
     }
   }
 
+  async function handleDeleteRepo() {
+    if (!confirm(vi ? `Bạn có chắc muốn xóa kho "${repo?.owner}/${repo?.name}" và toàn bộ dữ liệu phân tích?` : `Are you sure you want to delete "${repo?.owner}/${repo?.name}" and all indexed analysis?`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.deleteRepo(id);
+      window.location.assign("/library");
+    } catch (err) {
+      setError(messageOf(err));
+      setDeleting(false);
+    }
+  }
+
   const errorBox = error && (
     <div className="notice error" role="alert">
       {error}{" "}
@@ -148,9 +164,14 @@ function Workspace({ id }: { id: string }) {
             <span className="owner"><Icon name="repository" size={17}/>{repo.owner} /</span>
             <h1>{repo.name}</h1>
           </div>
-          <button className="quiet" disabled={busy} onClick={sync}>
-            <Icon name="refresh" size={15}/>{busy ? t.btnResyncing : t.btnResync}
-          </button>
+          <div className="repo-actions">
+            <button className="quiet" disabled={busy} onClick={sync} title={vi ? "Đồng bộ lại" : "Resync"}>
+              <Icon name="refresh" size={15}/>{busy ? t.btnResyncing : t.btnResync}
+            </button>
+            <button className="quiet danger-link" disabled={deleting || busy} onClick={handleDeleteRepo} title={vi ? "Xóa kho" : "Delete repository"}>
+              {deleting ? <span className="spinner"/> : (vi ? "Xóa kho" : "Delete")}
+            </button>
+          </div>
         </div>
 
         <div className="repo-meta">

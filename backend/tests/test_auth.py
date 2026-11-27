@@ -427,4 +427,17 @@ def test_pull_requests_tenant_isolation():
     resp_b = client.get(f"/api/repos/{repo_id}/pulls", headers=_auth_header(user_b["access_token"]))
     assert resp_b.status_code == 403
 
+    # User B cannot delete User A's repo (403)
+    del_b = client.delete(f"/api/repos/{repo_id}", headers=_auth_header(user_b["access_token"]))
+    assert del_b.status_code == 403
+
+    # User A can delete their own repo (200)
+    del_a = client.delete(f"/api/repos/{repo_id}", headers=_auth_header(user_a["access_token"]))
+    assert del_a.status_code == 200
+    assert del_a.json()["status"] == "deleted"
+
+    # Repo no longer exists
+    get_del = client.get(f"/api/repos/{repo_id}", headers=_auth_header(user_a["access_token"]))
+    assert get_del.status_code == 404
+
 

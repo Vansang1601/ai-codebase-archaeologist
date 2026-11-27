@@ -98,8 +98,20 @@ def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db), 
         repo.tenant_id = tenant_id
         db.commit()
         db.refresh(repo)
-        db.refresh(repo)
     return {"id": repo.id, "owner": repo.owner, "name": repo.name, "canonical_url": repo.canonical_url, "status": repo.status}
+
+
+@app.delete("/api/repos/{repo_id}")
+def delete_repository(repo_id: str, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
+    """Delete a repository and all its associated snapshots, jobs, and analysis data."""
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if user is not None:
+        require_repo_access(repo, user)
+    db.delete(repo)
+    db.commit()
+    return {"status": "deleted", "id": repo_id}
 
 
 def _queue_repo_sync(db: Session, repo: Repository, requested_ref: str | None = None) -> AnalysisJob:

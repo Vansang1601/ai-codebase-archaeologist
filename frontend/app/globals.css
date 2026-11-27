@@ -128,6 +128,13 @@ pre,code,.mono { font-family: var(--mono); }
 .repo-row:last-child { border-bottom: 0; }
 .repo-row:hover { background: var(--well); }
 .repo-row > svg { color: var(--muted); }
+.repo-row-wrap { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.repo-row-wrap:last-child { border-bottom: 0; }
+.repo-row-wrap .repo-row { flex: 1; border-bottom: 0; }
+.repo-row-delete { margin-right: 12px; color: var(--muted); padding: 8px; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+.repo-row-delete:hover { color: #c4321d; background: #fdf2f0; }
+:root.dark .repo-row-delete:hover { color: #ff9d8c; background: #351e1a; }
+.repo-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .repo-symbol { width: 38px; height: 40px; flex-shrink: 0; }
 .row-details { flex: 1; min-width: 0; }
 .row-details strong { font-size: 15px; display: block; overflow-wrap: anywhere; }

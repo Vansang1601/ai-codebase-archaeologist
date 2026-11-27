@@ -245,6 +245,11 @@ export const api = {
       body: JSON.stringify({ url })
     }),
 
+  deleteRepo: (id: string) =>
+    request<{ status: string; id: string }>(`/api/repos/${id}`, {
+      method: "DELETE"
+    }),
+
   repo: (id: string) => request<Repo>(`/api/repos/${id}`),
 
   sync: (id: string) =>

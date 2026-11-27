@@ -14,6 +14,7 @@ export default function RepositoryLibrary() {
   const router = useRouter();
   const repos = useRead(api.repos);
   const [query, setQuery] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const unauthorized = repos.state.status === "error"
     && repos.state.error instanceof ApiError && repos.state.error.status === 401;
 
@@ -23,6 +24,21 @@ export default function RepositoryLibrary() {
       router.replace("/login");
     }
   }, [unauthorized, router]);
+
+  async function handleDelete(e: React.MouseEvent, id: string, name: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(vi ? `Bạn có chắc chắn muốn xóa kho "${name}" khỏi thư viện?` : `Are you sure you want to remove "${name}" from your library?`)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      await api.deleteRepo(id);
+      repos.retry();
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   if (unauthorized) return null;
   return <section className="wrap resource-page" aria-labelledby="library-title">
@@ -46,11 +62,26 @@ export default function RepositoryLibrary() {
       const filtered = rows.filter(r => (r.owner + "/" + r.name).toLowerCase().includes(query.trim().toLowerCase()));
       return <div className="repo-list">
         {(rows.length > 1 || query) && <label className="repo-filter"><Icon name="search" size={16}/><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={vi ? "Tìm theo chủ sở hữu hoặc tên kho…" : "Filter by owner or repository…"} aria-label={vi ? "Lọc kho mã" : "Filter repositories"}/></label>}
-        {filtered.map(r => <Link key={r.id} href={"/repos/" + r.id + "?from=library"} className="repo-row">
-          <span className="repo-symbol"><Icon name="repository" size={22}/></span>
-          <div className="row-details"><strong><span>{r.owner} / </span>{r.name}</strong><small>{r.snapshot ? <><Icon name="commit" size={14}/>{r.snapshot.commit_sha.slice(0,7)} · {r.snapshot.file_count} {t.filesUnit} · {r.snapshot.pr_count ?? 0} PRs</> : t.noSnapshot}</small></div>
-          <Status value={r.status}/><Icon name="arrow" size={16}/>
-        </Link>)}
+        {filtered.map(r => <div key={r.id} className="repo-row-wrap">
+          <Link href={"/repos/" + r.id + "?from=library"} className="repo-row">
+            <span className="repo-symbol"><Icon name="repository" size={22}/></span>
+            <div className="row-details">
+              <strong><span>{r.owner} / </span>{r.name}</strong>
+              <small>{r.snapshot ? <><Icon name="commit" size={14}/>{r.snapshot.commit_sha.slice(0,7)} · {r.snapshot.file_count} {t.filesUnit} · {r.snapshot.symbol_count} symbols · {r.snapshot.pr_count ?? 0} PRs</> : t.noSnapshot}</small>
+            </div>
+            <Status value={r.status}/>
+            <Icon name="arrow" size={16}/>
+          </Link>
+          <button
+            type="button"
+            className="icon-button repo-row-delete"
+            title={vi ? "Xóa kho" : "Delete repository"}
+            disabled={deletingId === r.id}
+            onClick={(e) => handleDelete(e, r.id, `${r.owner}/${r.name}`)}
+          >
+            {deletingId === r.id ? <span className="spinner" /> : <Icon name="audit" size={15} />}
+          </button>
+        </div>)}
         {filtered.length === 0 && <p className="notice">{vi ? "Chưa có kho nào khớp với từ khóa." : "No repositories match this filter."}</p>}
       </div>;
     }}</ReadView>
