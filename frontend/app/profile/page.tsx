@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { api, setToken, type UserProfile } from "../../lib/api";
+import { api, setToken, type UserProfile, type AuthSessionInfo } from "../../lib/api";
 import { useI18n, type Locale } from "../../lib/i18n";
 import Icon from "../components/Icon";
 
@@ -22,6 +22,11 @@ export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [busyOAuth, setBusyOAuth] = useState("");
+
+  // Sessions state
+  const [sessions, setSessions] = useState<AuthSessionInfo[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [revokingSession, setRevokingSession] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -43,6 +48,15 @@ export default function ProfilePage() {
       current = false;
     };
   }, [router, locale]);
+
+  // Load sessions on mount
+  useEffect(() => {
+    setSessionsLoading(true);
+    api.listSessions()
+      .then(res => setSessions(res.sessions || []))
+      .catch(() => setSessions([]))
+      .finally(() => setSessionsLoading(false));
+  }, []);
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -94,6 +108,28 @@ export default function ProfilePage() {
       setToken(null);
       window.location.assign("/");
     }
+  }
+
+  async function handleRevokeSession(sessionId: string) {
+    if (revokingSession) return;
+    setRevokingSession(sessionId);
+    try {
+      await api.revokeSession(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+    } catch {
+      // ignore
+    } finally {
+      setRevokingSession(null);
+    }
+  }
+
+  function formatSessionDevice(ua: string | null | undefined): string {
+    if (!ua) return vi ? "Thiết bị không xác định" : "Unknown device";
+    if (/Mobile|Android|iPhone|iPad/.test(ua)) return vi ? "Thiết bị di động" : "Mobile device";
+    if (/Windows/.test(ua)) return "Windows";
+    if (/Mac/.test(ua)) return "Mac";
+    if (/Linux/.test(ua)) return "Linux";
+    return vi ? "Trình duyệt web" : "Web browser";
   }
 
   if (loading) {
@@ -369,6 +405,75 @@ export default function ProfilePage() {
               </button>
               <span className="muted text-sm">{t.profileSignOutDesc}</span>
             </div>
+          </div>
+
+          {/* Active Sessions List */}
+          <div className="sessions-section">
+            <div className="sessions-header">
+              <h3 className="sessions-title">
+                {vi ? "Phiên đang hoạt động" : "Active Sessions"}
+              </h3>
+              <span className="sessions-count">
+                {sessionsLoading ? "…" : sessions.length}
+              </span>
+            </div>
+            {sessionsLoading ? (
+              <div className="sessions-loading">
+                <span className="spinner" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <p className="muted text-sm sessions-empty">
+                {vi ? "Không có phiên nào đang hoạt động." : "No active sessions found."}
+              </p>
+            ) : (
+              <ul className="sessions-list">
+                {sessions.map(s => (
+                  <li key={s.id} className={`session-item${s.is_current ? " session-current" : ""}`}>
+                    <div className="session-info">
+                      <div className="session-device">
+                        <Icon name="globe" size={14} />
+                        <span>{s.user_agent
+                          ? (/Mobile|Android|iPhone|iPad/.test(s.user_agent)
+                              ? (vi ? "Thiết bị di động" : "Mobile device")
+                              : /Windows/.test(s.user_agent) ? "Windows"
+                              : /Mac/.test(s.user_agent) ? "Mac"
+                              : /Linux/.test(s.user_agent) ? "Linux"
+                              : (vi ? "Trình duyệt web" : "Web browser"))
+                          : (vi ? "Thiết bị không xác định" : "Unknown device")}
+                        </span>
+                        {s.is_current && (
+                          <span className="badge-current">{vi ? "Hiện tại" : "Current"}</span>
+                        )}
+                      </div>
+                      <div className="session-meta muted">
+                        {s.ip_address && <span>IP: {s.ip_address}</span>}
+                        <span>
+                          {vi ? "Đăng nhập:" : "Signed in:"}{" "}
+                          {new Date(s.issued_at).toLocaleString(vi ? "vi-VN" : "en-US")}
+                        </span>
+                        <span>
+                          {vi ? "Hết hạn:" : "Expires:"}{" "}
+                          {new Date(s.expires_at).toLocaleString(vi ? "vi-VN" : "en-US")}
+                        </span>
+                      </div>
+                    </div>
+                    {!s.is_current && (
+                      <button
+                        type="button"
+                        className="session-revoke-btn"
+                        onClick={() => handleRevokeSession(s.id)}
+                        disabled={revokingSession === s.id}
+                        title={vi ? "Thu hồi phiên này" : "Revoke this session"}
+                      >
+                        {revokingSession === s.id ? <span className="spinner" /> : (
+                          vi ? "Thu hồi" : "Revoke"
+                        )}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
       </div>

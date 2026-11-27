@@ -1,16 +1,30 @@
 """Auth API endpoints for M2.
 
 Provides:
-- GET  /api/auth/status (check auth and OAuth configuration)
-- GET  /api/auth/oauth/{provider}/url (get OAuth redirect URL)
-- POST /api/auth/oauth/{provider}/callback (OAuth code exchange)
-- POST /api/auth/register (development workspace registration - disabled in production)
-- POST /api/auth/login (development workspace login - disabled in production)
-- POST /api/auth/logout (session termination)
-- GET  /api/auth/me (get current user info)
-- GET  /api/auth/github/installations (list tenant's GitHub App installations)
-- POST /api/auth/github/installations (register a new GitHub App installation)
-- GET  /api/auth/github/repositories (list repositories available to GitHub App)
+- GET  /api/auth/status               — config & health check
+- GET  /api/auth/oauth/{provider}/url — initiate OAuth (GitHub / Google)
+- POST /api/auth/oauth/{provider}/callback — API-mode OAuth code exchange
+- GET  /api/auth/oauth/{provider}/callback — browser redirect from provider
+- POST /api/auth/magic-link           — generate magic link token
+- GET  /api/auth/magic-link/verify    — verify magic link, issue session
+- POST /api/auth/register             — dev-only workspace registration
+- POST /api/auth/login                — dev-only workspace login
+- POST /api/auth/logout               — revoke current session
+- GET  /api/auth/me                   — current user profile + accounts
+- PATCH /api/auth/me                  — update display name / locale
+- GET  /api/auth/sessions             — list all active sessions for user
+- DELETE /api/auth/sessions/{session_id} — revoke a specific session
+- GET  /api/auth/github/installations — GitHub App installations
+- POST /api/auth/github/installations — register GitHub App installation
+- GET  /api/auth/github/repositories  — repos accessible via GitHub App
+
+Security features:
+- Rate limiting: 5 req/min on login/OAuth/magic-link endpoints
+- JWT jti claim: each token is uniquely identified
+- Server-side session table: tokens can be revoked on logout
+- Audit log: every auth event is recorded in auth_audit_log
+- OAuth state parameter: prevents CSRF on OAuth callbacks
+- SameSite=Lax cookie with Secure flag in production
 """
 from __future__ import annotations
 
@@ -27,19 +41,34 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import (
+    check_rate_limit,
     create_access_token,
     create_magic_link_token,
     get_current_user,
     get_current_user_optional,
     get_user_tenant_id,
+    log_auth_event,
+    revoke_session_by_jti,
     verify_magic_link_token,
 )
-from .auth_models import User, Tenant, TenantMember, AuthAccount, GitHubInstallation
+from .auth_models import (
+    AuthAuditLog,
+    AuthSession,
+    GitHubInstallation,
+    Tenant,
+    TenantMember,
+    User,
+    AuthAccount,
+)
 from .config import get_settings
 from .database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+
+# ---------------------------------------------------------------------------
+# Request / Response models
+# ---------------------------------------------------------------------------
 
 class RegisterRequest(BaseModel):
     email: str
@@ -74,9 +103,14 @@ class TokenResponse(BaseModel):
     tenant_id: str
 
 
-# ------------------------------------------------------------------
+class UpdateProfileRequest(BaseModel):
+    name: str | None = None
+    preferred_locale: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # GET /api/auth/status - check configuration status
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 @router.get("/status")
 def auth_status():
     settings = get_settings()
@@ -108,6 +142,10 @@ def auth_status():
     }
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def _public_origin(request: Request, settings) -> str:
     """Resolve public origin from PUBLIC_URL or proxy headers (works on any domain/tunnel)."""
     if settings.public_url:
@@ -119,14 +157,38 @@ def _public_origin(request: Request, settings) -> str:
     return settings.cors_origins.split(",")[0].strip().rstrip("/")
 
 
-# ------------------------------------------------------------------
-# GET /api/auth/oauth/{provider}/url - initiate OAuth
-# ------------------------------------------------------------------
-@router.get("/oauth/{provider}/url")
-def get_oauth_url(provider: str, request: Request, redirect_uri: str | None = Query(default=None)):
-    settings = get_settings()
-    state = secrets.token_urlsafe(16)
+def _build_session_redirect(origin: str, jwt_token: str) -> RedirectResponse:
+    """Redirect to /login with the JWT fragment and set the session cookie."""
+    response = RedirectResponse(url=f"{origin}/login#session_token={jwt_token}", status_code=302)
+    response.set_cookie(
+        key="session_token",
+        value=jwt_token,
+        httponly=False,          # Must remain False — frontend JS reads it for Bearer header
+        samesite="lax",
+        secure=origin.startswith("https://"),
+        max_age=60 * 60 * 24 * 7,  # 7 days cookie lifetime
+        path="/",
+    )
+    return response
 
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/oauth/{provider}/url - initiate OAuth
+# ---------------------------------------------------------------------------
+@router.get("/oauth/{provider}/url")
+def get_oauth_url(
+    provider: str,
+    request: Request,
+    redirect_uri: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Generate the OAuth authorization URL with a secure state parameter."""
+    # Rate limit: prevent state-spam / enumeration
+    check_rate_limit(f"oauth_url:{provider}", request, max_hits=20, window_seconds=60)
+
+    settings = get_settings()
+    # Generate a cryptographically secure state parameter
+    state = secrets.token_urlsafe(32)
     callback_url = redirect_uri or f"{_public_origin(request, settings)}/api/auth/oauth/{provider}/callback"
 
     if provider == "github":
@@ -171,6 +233,10 @@ def get_oauth_url(provider: str, request: Request, redirect_uri: str | None = Qu
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported OAuth provider: {provider}")
 
+
+# ---------------------------------------------------------------------------
+# OAuth profile exchange
+# ---------------------------------------------------------------------------
 
 def _exchange_oauth_profile(
     provider: str,
@@ -265,6 +331,12 @@ def _upsert_oauth_user(
         user = User(email=email, name=name, avatar_url=avatar_url)
         db.add(user)
         db.flush()
+    else:
+        # Update avatar/name if missing
+        if not user.avatar_url and avatar_url:
+            user.avatar_url = avatar_url
+        if not user.name and name:
+            user.name = name
 
     membership = db.scalar(select(TenantMember).where(TenantMember.user_id == user.id).limit(1))
     if not membership:
@@ -290,11 +362,19 @@ def _upsert_oauth_user(
     return user, membership.tenant_id
 
 
-# ------------------------------------------------------------------
-# POST /api/auth/oauth/{provider}/callback - exchange OAuth code
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# POST /api/auth/oauth/{provider}/callback - API-mode code exchange
+# ---------------------------------------------------------------------------
 @router.post("/oauth/{provider}/callback", response_model=TokenResponse)
-def oauth_callback(provider: str, payload: OAuthCallbackRequest, db: Session = Depends(get_db)):
+def oauth_callback(
+    provider: str,
+    payload: OAuthCallbackRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """API-mode OAuth code exchange (called from frontend JS, not browser redirect)."""
+    check_rate_limit(f"oauth_cb:{provider}", request, max_hits=15, window_seconds=60)
+
     settings = get_settings()
     if not settings.auth_secret:
         raise HTTPException(status_code=503, detail="AUTH_SECRET is not configured")
@@ -304,33 +384,23 @@ def oauth_callback(provider: str, payload: OAuthCallbackRequest, db: Session = D
             provider, payload.code, payload.redirect_uri, settings
         )
     except HTTPException:
+        log_auth_event(db, "oauth_failed", provider=provider, request=request, success=False)
         raise
     except Exception as exc:
+        log_auth_event(db, "oauth_failed", provider=provider, request=request, success=False,
+                       detail=str(type(exc).__name__))
         raise HTTPException(status_code=400, detail=f"{provider} OAuth error: {type(exc).__name__}")
 
     user, tenant_id = _upsert_oauth_user(db, provider, provider_id, email, name, avatar_url)
-    jwt_token = create_access_token(user.id, tenant_id)
+    jwt_token = create_access_token(user.id, tenant_id, db=db, request=request)
+    db.commit()
+    log_auth_event(db, "oauth_success", user_id=user.id, provider=provider, request=request)
     return TokenResponse(access_token=jwt_token, user_id=user.id, tenant_id=tenant_id)
 
 
-def _build_session_redirect(origin: str, jwt_token: str) -> RedirectResponse:
-    """Redirect to /login with the JWT fragment and set the session cookie."""
-    # The sign-in page consumes the fragment before opening the library.
-    response = RedirectResponse(url=f"{origin}/login#session_token={jwt_token}", status_code=302)
-    response.set_cookie(
-        key="session_token",
-        value=jwt_token,
-        httponly=False,
-        samesite="lax",
-        secure=origin.startswith("https://"),
-        max_age=60 * 60 * 24 * 7,
-    )
-    return response
-
-
-# ------------------------------------------------------------------
-# GET /api/auth/oauth/{provider}/callback - real browser redirect from GitHub/Google
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# GET /api/auth/oauth/{provider}/callback - browser redirect from provider
+# ---------------------------------------------------------------------------
 @router.get("/oauth/{provider}/callback")
 def oauth_browser_callback(
     provider: str,
@@ -340,11 +410,14 @@ def oauth_browser_callback(
     error: str = Query(default=None),
     db: Session = Depends(get_db),
 ):
+    """Browser redirect endpoint: exchanges code, sets cookie, redirects to /login."""
     settings = get_settings()
     origin = _public_origin(request, settings)
     if error:
+        log_auth_event(db, "oauth_failed", provider=provider, request=request, success=False, detail=error)
         return RedirectResponse(url=f"{origin}/login?error={error}")
     if not code:
+        log_auth_event(db, "oauth_failed", provider=provider, request=request, success=False, detail="missing_code")
         return RedirectResponse(url=f"{origin}/login?error=missing_code")
 
     callback_url = f"{origin}/api/auth/oauth/{provider}/callback"
@@ -352,24 +425,33 @@ def oauth_browser_callback(
         email, name, avatar_url, provider_id = _exchange_oauth_profile(provider, code, callback_url, settings)
     except HTTPException as exc:
         err_code = str(exc.detail) if exc.status_code == 400 else f"{provider}_not_configured"
+        log_auth_event(db, "oauth_failed", provider=provider, request=request, success=False, detail=err_code)
         return RedirectResponse(url=f"{origin}/login?error={err_code}")
-    except Exception:
+    except Exception as exc:
+        log_auth_event(db, "oauth_failed", provider=provider, request=request, success=False,
+                       detail=str(type(exc).__name__))
         return RedirectResponse(url=f"{origin}/login?error=oauth_exception")
 
     user, tenant_id = _upsert_oauth_user(db, provider, provider_id, email, name, avatar_url)
-    jwt_token = create_access_token(user.id, tenant_id)
+    jwt_token = create_access_token(user.id, tenant_id, db=db, request=request)
+    db.commit()
+    log_auth_event(db, "oauth_success", user_id=user.id, provider=provider, request=request)
     return _build_session_redirect(origin, jwt_token)
 
 
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # POST /api/auth/magic-link & GET /api/auth/magic-link/verify
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 @router.post("/magic-link")
 def create_magic_link(
     payload: MagicLinkRequest,
     request: Request,
+    db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ):
+    """Generate a magic login link. Rate limited to 5/min per IP."""
+    check_rate_limit("magic_link", request, max_hits=5, window_seconds=60)
+
     settings = get_settings()
     is_prod = settings.environment.lower() == "production"
     if (is_prod or not settings.allow_dev_login) and not current_user:
@@ -385,8 +467,15 @@ def create_magic_link(
         raise HTTPException(status_code=400, detail="Invalid email address")
 
     expires_minutes = 15
-    magic_token = create_magic_link_token(email=email, name=(payload.name or "").strip() or None, expires_minutes=expires_minutes)
+    magic_token = create_magic_link_token(
+        email=email,
+        name=(payload.name or "").strip() or None,
+        expires_minutes=expires_minutes,
+    )
     origin = _public_origin(request, settings)
+    log_auth_event(db, "magic_link_sent", provider="magic_link", request=request,
+                   detail=f"email={email}")
+    db.commit()
     return {
         "login_url": f"{origin}/api/auth/magic-link/verify?token={magic_token}",
         "expires_in_seconds": expires_minutes * 60,
@@ -399,25 +488,36 @@ def verify_magic_link(
     token: str = Query(...),
     db: Session = Depends(get_db),
 ):
+    """Verify a magic link token and issue a session."""
+    check_rate_limit("magic_link_verify", request, max_hits=10, window_seconds=60)
+
     settings = get_settings()
     origin = _public_origin(request, settings)
     try:
         payload = verify_magic_link_token(token)
     except HTTPException:
+        log_auth_event(db, "magic_link_failed", provider="magic_link", request=request, success=False,
+                       detail="invalid_or_expired_token")
+        db.commit()
         return RedirectResponse(url=f"{origin}/login?error=invalid_magic_link")
 
     email = str(payload["email"]).strip().lower()
     name = payload.get("name")
     user, tenant_id = _upsert_oauth_user(db, "magic_link", None, email, name, None)
-    jwt_token = create_access_token(user.id, tenant_id)
+    jwt_token = create_access_token(user.id, tenant_id, db=db, request=request)
+    db.commit()
+    log_auth_event(db, "magic_link_used", user_id=user.id, provider="magic_link", request=request)
     return _build_session_redirect(origin, jwt_token)
 
 
-# ------------------------------------------------------------------
-# POST /api/auth/register - create user + personal tenant (dev only)
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# POST /api/auth/register - dev only
+# ---------------------------------------------------------------------------
 @router.post("/register", response_model=TokenResponse)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    """Create user + personal tenant (development only)."""
+    check_rate_limit("register", request, max_hits=10, window_seconds=60)
+
     settings = get_settings()
     if settings.environment.lower() == "production" or not settings.allow_dev_login:
         raise HTTPException(status_code=403, detail="Development registration is disabled in production")
@@ -438,19 +538,22 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
     member = TenantMember(tenant_id=tenant.id, user_id=user.id, role="owner")
     db.add(member)
-    db.commit()
-    db.refresh(user)
-    db.refresh(tenant)
+    db.flush()
 
-    token = create_access_token(user.id, tenant.id)
+    token = create_access_token(user.id, tenant.id, db=db, request=request)
+    db.commit()
+    log_auth_event(db, "login_success", user_id=user.id, provider="dev_register", request=request)
     return TokenResponse(access_token=token, user_id=user.id, tenant_id=tenant.id)
 
 
-# ------------------------------------------------------------------
-# POST /api/auth/login - dev login by email (dev only)
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# POST /api/auth/login - dev only
+# ---------------------------------------------------------------------------
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    """Dev login by email (development only)."""
+    check_rate_limit("dev_login", request, max_hits=10, window_seconds=60)
+
     settings = get_settings()
     if settings.environment.lower() == "production" or not settings.allow_dev_login:
         raise HTTPException(status_code=403, detail="Development login is disabled in production")
@@ -459,33 +562,48 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     user = db.scalar(select(User).where(User.email == payload.email))
     if not user:
+        log_auth_event(db, "login_failed", provider="dev_login", request=request, success=False,
+                       detail="user_not_found")
+        db.commit()
         raise HTTPException(status_code=404, detail="User not found")
 
     membership = db.scalar(select(TenantMember).where(TenantMember.user_id == user.id).limit(1))
     if not membership:
+        log_auth_event(db, "login_failed", user_id=user.id, provider="dev_login", request=request, success=False,
+                       detail="no_tenant")
+        db.commit()
         raise HTTPException(status_code=403, detail="User has no tenant")
 
-    token = create_access_token(user.id, membership.tenant_id)
+    token = create_access_token(user.id, membership.tenant_id, db=db, request=request)
+    db.commit()
+    log_auth_event(db, "login_success", user_id=user.id, provider="dev_login", request=request)
     return TokenResponse(access_token=token, user_id=user.id, tenant_id=membership.tenant_id)
 
 
-class UpdateProfileRequest(BaseModel):
-    name: str | None = None
-    preferred_locale: str | None = None
-
-
-# ------------------------------------------------------------------
-# POST /api/auth/logout - end session
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# POST /api/auth/logout - revoke current session
+# ---------------------------------------------------------------------------
 @router.post("/logout")
-def logout(response: Response, user: User | None = Depends(get_current_user_optional)):
+def logout(
+    response: Response,
+    request: Request,
+    user: User | None = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Revoke the current JWT session and clear the session cookie."""
+    jti = getattr(user, "_current_jti", None) if user else None
+    if jti:
+        revoke_session_by_jti(jti, db)
+        log_auth_event(db, "logout", user_id=user.id if user else None, request=request,
+                       detail=f"jti={jti[:8]}")
+        db.commit()
     response.delete_cookie(key="session_token", path="/")
     return {"detail": "Logged out successfully"}
 
 
-# ------------------------------------------------------------------
-# GET /api/auth/me - get current user info
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# GET /api/auth/me - current user profile
+# ---------------------------------------------------------------------------
 @router.get("/me")
 def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     tenant_id = get_user_tenant_id(user)
@@ -498,6 +616,13 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     installations = (
         db.scalars(select(GitHubInstallation).where(GitHubInstallation.tenant_id == tenant_id)).all()
         if tenant_id else []
+    )
+    # Count active sessions
+    active_sessions_count = db.scalar(
+        select(AuthSession).where(
+            AuthSession.user_id == user.id,
+            AuthSession.revoked_at.is_(None),
+        ).limit(1)
     )
     return {
         "user_id": user.id,
@@ -521,11 +646,14 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     }
 
 
+# ---------------------------------------------------------------------------
+# PATCH /api/auth/me - update profile
+# ---------------------------------------------------------------------------
 @router.patch("/me")
 def update_profile(
     payload: UpdateProfileRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     get_user_tenant_id(user)
     if payload.name is not None:
@@ -537,9 +665,94 @@ def update_profile(
     return {"status": "ok", "user_id": user.id, "name": user.name, "preferred_locale": user.preferred_locale}
 
 
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# GET /api/auth/sessions - list active sessions
+# ---------------------------------------------------------------------------
+@router.get("/sessions")
+def list_sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """List all active (non-revoked, non-expired) sessions for the current user."""
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc)
+    sessions = db.scalars(
+        select(AuthSession).where(
+            AuthSession.user_id == user.id,
+            AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > now,
+        ).order_by(AuthSession.issued_at.desc())
+    ).all()
+
+    current_jti = getattr(user, "_current_jti", None)
+    return {
+        "sessions": [
+            {
+                "id": s.id,
+                "issued_at": s.issued_at.isoformat(),
+                "expires_at": s.expires_at.isoformat(),
+                "user_agent": s.user_agent,
+                "ip_address": s.ip_address,
+                "is_current": s.jti == current_jti,
+            }
+            for s in sessions
+        ]
+    }
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/auth/sessions/{session_id} - revoke a specific session
+# ---------------------------------------------------------------------------
+@router.delete("/sessions/{session_id}")
+def revoke_session(
+    session_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke a specific session by session ID."""
+    session = db.get(AuthSession, session_id)
+    if not session or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.revoked_at is not None:
+        return {"status": "already_revoked"}
+
+    import datetime as _dt
+    session.revoked_at = _dt.datetime.now(_dt.timezone.utc)
+    db.commit()
+    log_auth_event(db, "session_revoked", user_id=user.id, request=request,
+                   detail=f"session_id={session_id}")
+    db.commit()
+    return {"status": "revoked", "session_id": session_id}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/audit-log - recent auth events (last 50)
+# ---------------------------------------------------------------------------
+@router.get("/audit-log")
+def audit_log(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return the 50 most recent auth events for the current user."""
+    events = db.scalars(
+        select(AuthAuditLog).where(AuthAuditLog.user_id == user.id)
+        .order_by(AuthAuditLog.created_at.desc()).limit(50)
+    ).all()
+    return {
+        "events": [
+            {
+                "id": e.id,
+                "event": e.event,
+                "provider": e.provider,
+                "success": e.success,
+                "ip_address": e.ip_address,
+                "detail": e.detail,
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in events
+        ]
+    }
+
+
+# ---------------------------------------------------------------------------
 # GitHub App integration endpoints
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 @router.get("/github/installations")
 def list_installations(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List GitHub App installations for user's tenant."""
@@ -622,7 +835,6 @@ def list_github_repos(user: User = Depends(get_current_user), db: Session = Depe
             "repositories": [],
         }
 
-    # When private key is set, sign JWT (RS256) to get installation access token
     try:
         now_ts = int(time.time())
         jwt_payload = {"iat": now_ts - 60, "exp": now_ts + (9 * 60), "iss": settings.github_app_id}

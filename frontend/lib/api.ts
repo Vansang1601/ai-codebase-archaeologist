@@ -160,6 +160,25 @@ export interface UserProfile {
   github_installations_count?: number;
 }
 
+export interface AuthSessionInfo {
+  id: string;
+  issued_at: string;
+  expires_at: string;
+  user_agent?: string | null;
+  ip_address?: string | null;
+  is_current: boolean;
+}
+
+export interface AuditEvent {
+  id: string;
+  event: string;
+  provider?: string | null;
+  success: boolean;
+  ip_address?: string | null;
+  detail?: string | null;
+  created_at: string;
+}
+
 export interface FindingItem {
   excerpt: string[];
   commit_sha: string;
@@ -322,4 +341,15 @@ export const api = {
     request<any>("/api/auth/logout", {
       method: "POST"
     }),
+
+  listSessions: () =>
+    request<{ sessions: AuthSessionInfo[] }>("/api/auth/sessions"),
+
+  revokeSession: (sessionId: string) =>
+    request<{ status: string; session_id: string }>(`/api/auth/sessions/${sessionId}`, {
+      method: "DELETE",
+    }),
+
+  auditLog: () =>
+    request<{ events: AuditEvent[] }>("/api/auth/audit-log"),
 };

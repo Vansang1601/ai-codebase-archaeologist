@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     auth_github_secret: str = ""
     auth_google_id: str = ""
     auth_google_secret: str = ""
+    # Rate limiting
+    max_login_attempts: int = 5
+    rate_limit_window_seconds: int = 60
+    # Email domain allowlist (comma-separated, empty = allow all domains)
+    allowed_email_domains: str = ""
     # GitHub App (for repository connection, NOT login)
     github_app_id: str = ""
     github_app_client_id: str = ""

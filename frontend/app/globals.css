@@ -393,6 +393,24 @@ pre,code,.mono { font-family: var(--mono); }
 .account-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-user.active { border-color: var(--accent); background: var(--well); }
 
+/* Active Sessions Section */
+.sessions-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.sessions-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.sessions-title { font-size: 15px; font-weight: 600; margin: 0; color: var(--text); }
+.sessions-count { font-size: 12px; font-family: var(--mono); background: var(--tint); color: var(--accent); padding: 2px 8px; border-radius: 99px; }
+.sessions-loading, .sessions-empty { padding: 12px 0; }
+.sessions-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.session-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm, 8px); background: var(--well); border: 1px solid var(--line); }
+.session-item.session-current { border-color: var(--action); background: var(--tint); }
+.session-info { min-width: 0; flex: 1; }
+.session-device { display: flex; align-items: center; gap: 8px; font-weight: 550; font-size: 13px; color: var(--text); }
+.session-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; margin-top: 4px; font-family: var(--mono); }
+.badge-current { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: #55a22d22; color: #55a22d; border: 1px solid #55a22d55; font-weight: 600; text-transform: uppercase; }
+.session-revoke-btn { font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid #e59080; color: #c4321d; background: transparent; cursor: pointer; transition: all 0.15s; }
+.session-revoke-btn:hover { background: #fdf2f0; }
+:root.dark .session-revoke-btn { border-color: #733a30; color: #ff9d8c; }
+:root.dark .session-revoke-btn:hover { background: #351e1a; }
+
 @media (max-width: 768px) {
   .profile-grid { grid-template-columns: 1fr; }
   .profile-hero-content { flex-direction: column; text-align: center; }

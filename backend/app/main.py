@@ -17,7 +17,7 @@ from .security import canonicalize_github_url, RepositoryUrlError
 from .retrieval import retrieve, evidence_url, latest_snapshot
 from .llm import synthesize
 from .auth import get_current_user, get_current_user_optional, get_user_tenant_id, require_repo_access, require_job_access
-from .auth_models import User, Tenant, TenantMember, AuthAccount, GitHubInstallation  # ensure tables are registered
+from .auth_models import User, Tenant, TenantMember, AuthAccount, GitHubInstallation, AuthSession, AuthAuditLog  # ensure tables are registered
 from .auth_routes import router as auth_router
 
 settings = get_settings()
