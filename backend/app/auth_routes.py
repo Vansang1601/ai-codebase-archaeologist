@@ -20,7 +20,7 @@ from urllib.parse import urlencode
 
 import httpx
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -159,6 +159,7 @@ def get_oauth_url(provider: str, request: Request, redirect_uri: str | None = Qu
             "scope": "openid email profile",
             "state": state,
             "access_type": "online",
+            "prompt": "select_account",
             "redirect_uri": callback_url,
         }
         return {
@@ -477,7 +478,8 @@ class UpdateProfileRequest(BaseModel):
 # POST /api/auth/logout - end session
 # ------------------------------------------------------------------
 @router.post("/logout")
-def logout(user: User = Depends(get_current_user)):
+def logout(response: Response, user: User | None = Depends(get_current_user_optional)):
+    response.delete_cookie(key="session_token", path="/")
     return {"detail": "Logged out successfully"}
 
 

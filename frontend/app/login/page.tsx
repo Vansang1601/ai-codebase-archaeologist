@@ -42,18 +42,36 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [magicUrl, setMagicUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ email: string; name?: string | null } | null>(null);
+  const [switchNotice, setSwitchNotice] = useState(false);
 
   useEffect(() => {
     let current = true;
+    const urlParams = new URLSearchParams(location.search);
+    const isSwitch = urlParams.get("switch") === "1" || urlParams.get("switch") === "true";
+    if (isSwitch) {
+      setToken(null);
+      setSwitchNotice(true);
+      window.history.replaceState(window.history.state, "", location.pathname);
+    }
+
     function resumeSession() {
       const token = new URLSearchParams(location.hash.slice(1)).get("session_token");
       if (token) {
         setToken(token);
         window.history.replaceState(window.history.state, "", location.pathname + location.search);
+        router.replace("/library");
+        return;
       }
       const errParam = new URLSearchParams(location.search).get("error");
       if (errParam) setError(formatOAuthError(errParam, vi, window.location.origin));
-      api.me().then(user => { if (current && user?.email) router.replace("/library"); }, () => {});
+      if (!isSwitch) {
+        api.me().then(user => {
+          if (current && user?.email) {
+            setCurrentUser({ email: user.email, name: user.name });
+          }
+        }, () => {});
+      }
     }
     resumeSession();
     window.addEventListener("hashchange", resumeSession);
@@ -62,6 +80,16 @@ export default function LoginPage() {
       window.removeEventListener("hashchange", resumeSession);
     };
   }, [router, vi]);
+
+  async function handleSwitchAccount() {
+    try {
+      await api.logout();
+    } finally {
+      setToken(null);
+      setCurrentUser(null);
+      setSwitchNotice(true);
+    }
+  }
 
   async function oauth(provider: "github" | "google") {
     if (busy) return;
@@ -106,6 +134,26 @@ export default function LoginPage() {
       <aside className="login-art" aria-hidden="true"><StrataFigure/></aside>
       <section className="login-panel">
         <h1>{t.loginTitle}</h1><p className="muted">{t.loginSubtitle}</p>
+        {currentUser && (
+          <div className="notice" style={{ marginBottom: "16px" }}>
+            <p style={{ margin: "0 0 6px 0" }}>
+              {vi ? "Bạn đang đăng nhập với:" : "Currently signed in as:"} <strong>{currentUser.email}</strong> {currentUser.name ? `(${currentUser.name})` : ""}
+            </p>
+            <div className="form-actions" style={{ marginTop: "10px" }}>
+              <Link className="primary" href="/library" style={{ textDecoration: "none", display: "inline-block" }}>
+                {vi ? "Tiếp tục vào không gian làm việc" : "Continue to workspace"}
+              </Link>
+              <button type="button" className="quiet" onClick={handleSwitchAccount}>
+                {vi ? "Đổi tài khoản khác" : "Switch account"}
+              </button>
+            </div>
+          </div>
+        )}
+        {switchNotice && !currentUser && (
+          <p className="notice" role="status" style={{ marginBottom: "16px" }}>
+            {vi ? "Đã đăng xuất. Bạn có thể chọn tài khoản Google khác hoặc phương thức bên dưới để tiếp tục." : "Signed out. You can now choose another Google account or login method below."}
+          </p>
+        )}
         {error && <p className="notice error" role="alert">{error}</p>}
         <ReadView read={auth}>{status => <>
           <div className="provider-list">
