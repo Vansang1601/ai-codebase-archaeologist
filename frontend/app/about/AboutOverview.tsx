@@ -23,12 +23,12 @@ const content: Record<"en" | "vi", Copy> = {
   en: {
     featuresTitle: "What you can do",
     features: [
-      { icon: "quote", title: "Grounded Q&A", body: "Ask in plain language. Every answer cites files, lines and commits. When the evidence is too thin, it says so instead of guessing." },
+      { icon: "quote", title: "Grounded Q&A", body: "Ask in plain language. Answers can cite files, lines and commits. When the evidence is too thin, it says so instead of guessing." },
       { icon: "file", title: "Source code explorer", body: "Browse the file tree, read code with line numbers and filter files by path, all in your browser." },
       { icon: "clock", title: "Commits and Pull Requests", body: "Follow the commit timeline and the Pull Requests collected from GitHub to see how the code evolved." },
       { icon: "graph", title: "Dependencies and impact", body: "See which files import each other and which ones a change may affect, up to two steps away." },
       { icon: "audit", title: "Technical debt signals", body: "Spot oversized files and functions, modules with heavy coupling and circular dependencies, each with evidence." },
-      { icon: "commit", title: "Pinned to a commit SHA", body: "Every analysis belongs to one commit, so a citation always points at the exact revision that was read." },
+      { icon: "code", title: "Review and patch code", body: "Open a cited line, propose a targeted replacement, review the changes and export a Git patch." },
     ],
     flowTitle: "How an analysis runs",
     flow: [
@@ -52,12 +52,12 @@ const content: Record<"en" | "vi", Copy> = {
   vi: {
     featuresTitle: "Bạn có thể làm gì",
     features: [
-      { icon: "quote", title: "Hỏi đáp có dẫn chứng", body: "Đặt câu hỏi bằng ngôn ngữ tự nhiên. Mỗi câu trả lời kèm tệp, dòng mã và commit. Nếu chưa đủ bằng chứng, hệ thống nói rõ thay vì đoán." },
+      { icon: "quote", title: "Hỏi đáp có dẫn chứng", body: "Đặt câu hỏi bằng ngôn ngữ tự nhiên. Câu trả lời có thể kèm tệp, dòng mã và commit. Nếu chưa đủ bằng chứng, hệ thống nói rõ thay vì đoán." },
       { icon: "file", title: "Khám phá mã nguồn", body: "Duyệt cây tệp, đọc mã kèm số dòng và lọc tệp theo đường dẫn ngay trên trình duyệt." },
       { icon: "clock", title: "Commit và Pull Request", body: "Xem dòng thời gian commit và các Pull Request lấy từ GitHub để hiểu mã đã thay đổi như thế nào." },
       { icon: "graph", title: "Phụ thuộc và phạm vi ảnh hưởng", body: "Biết tệp nào import tệp nào và những tệp có thể bị ảnh hưởng khi sửa mã, tối đa hai bước." },
       { icon: "audit", title: "Dấu hiệu nợ kỹ thuật", body: "Phát hiện tệp, hàm quá lớn, module phụ thuộc quá nhiều và vòng phụ thuộc, kèm bằng chứng." },
-      { icon: "commit", title: "Cố định theo mã commit", body: "Mỗi lần phân tích gắn với một commit SHA, nên trích dẫn luôn trỏ đúng phiên bản đã đọc." },
+      { icon: "code", title: "Soi và sửa mã", body: "Mở dòng được dẫn chứng, đề xuất sửa, xem trước thay đổi và xuất Git patch." },
     ],
     flowTitle: "Một lượt phân tích diễn ra thế nào",
     flow: [
@@ -103,31 +103,7 @@ export default function AboutOverview() {
         </div>
       </section>
 
-      <section className="rs-section" aria-labelledby="about-flow">
-        <h3 id="about-flow" className="block-title">{copy.flowTitle}</h3>
-        <ol className="flow">
-          {copy.flow.map(([title, body]) => <li key={title}><h4>{title}</h4><p>{body}</p></li>)}
-        </ol>
-      </section>
 
-      <div className="resource-columns even rs-section">
-        <aside className="resource-aside">
-          <Icon name="code" size={24}/>
-          <h3>{copy.citations}</h3>
-          <p>{copy.citationText}</p>
-          <code className="cite-sample">{copy.citationExample}</code>
-          <p>{copy.evidence}</p>
-        </aside>
-        <aside className="resource-aside">
-          <Icon name="compass" size={24}/>
-          <h3>{copy.limitsTitle}</h3>
-          <ul className="tick-list">
-            {copy.limits.map(item => <li key={item}><Icon name="check" size={16}/><span>{item}</span></li>)}
-          </ul>
-          <p className="fine-print">{copy.disclaimer}</p>
-          <Link href="/guide" className="text-action resource-link">{t.guideTitle}<Icon name="arrow" size={15}/></Link>
-        </aside>
-      </div>
     </section>
   );
 }

@@ -66,8 +66,8 @@ export default function HomeHero() {
       icon: "audit" as const,
       title: vi ? "Thẩm tra & Tái cấu trúc" : "Evidence-Backed Refactor",
       desc: vi
-        ? "Nhảy thẳng vào số dòng code thực tế để xác thực và khắc phục."
-        : "Jump to exact highlighted lines of code to remediate findings.",
+        ? "Mở đúng dòng mã, xem trước bản sửa và xuất patch đã duyệt."
+        : "Jump to highlighted lines, preview a fix and export a reviewed patch.",
     },
   ];
 
@@ -162,8 +162,8 @@ export default function HomeHero() {
             <h2>{vi ? "Cách Thức Hoạt Động Của Hệ Thống" : "How Codebase Archaeology Works"}</h2>
             <p className="muted">
               {vi
-                ? "Không phỏng đoán, không sinh code ảo giác — mọi kết luận đều được chứng minh qua 4 giai đoạn chuẩn mực."
-                : "Zero hallucinations, zero guesswork — every inspection conclusion is proven through 4 systematic phases."}
+                ? "Từ kho mã đến dẫn chứng, phân tích và bản sửa có thể kiểm tra qua 4 giai đoạn."
+                : "From repository to source evidence, analysis and reviewable edits in four stages."}
             </p>
           </div>
 

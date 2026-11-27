@@ -46,3 +46,12 @@ class AnswerOut(BaseModel):
     grounded: bool
     evidence: list[EvidenceOut]
     warnings: list[str] = []
+
+
+class CodeEditRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=1000)
+    commit_sha: str = Field(min_length=7, max_length=64)
+    line_start: int = Field(ge=1)
+    line_end: int = Field(ge=1)
+    instruction: str = Field(default="", max_length=2000)
+    replacement: str | None = Field(default=None, max_length=40000)

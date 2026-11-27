@@ -12,10 +12,11 @@ from typing import Optional
 from .config import get_settings
 from .database import Base, engine, get_db
 from .models import Repository, Snapshot, AnalysisJob, CodeFile, Symbol, Dependency, CommitChangeStat, CommitRecord, Finding, PullRequest, Chunk
-from .schemas import RepositoryCreate, SyncRequest, QuestionRequest, ImpactRequest, AnswerOut, EvidenceOut
+from .schemas import RepositoryCreate, SyncRequest, QuestionRequest, ImpactRequest, AnswerOut, EvidenceOut, CodeEditRequest
 from .security import canonicalize_github_url, RepositoryUrlError
 from .retrieval import retrieve, evidence_url, latest_snapshot
-from .llm import synthesize
+from .llm import synthesize, propose_edit, provider_error
+from .code_edit import prepare_edit
 from .auth import get_current_user, get_current_user_optional, get_user_tenant_id, require_repo_access, require_job_access
 from .auth_models import User, Tenant, TenantMember, AuthAccount, GitHubInstallation, AuthSession, AuthAuditLog  # ensure tables are registered
 from .auth_routes import router as auth_router
@@ -265,7 +266,7 @@ def ask_question(repo_id: str, payload: QuestionRequest, db: Session = Depends(g
         answer, warnings = synthesize(payload.question, blocks, history=history_turns)
     except Exception as exc:
         answer = "LLM không khả dụng; trả về evidence đã truy xuất."
-        warnings = [f"LLM call failed: {type(exc).__name__}"]
+        warnings = [provider_error(exc)]
     evidence = [EvidenceOut(
         path=x.chunk.path,
         line_start=x.chunk.line_start,
@@ -277,7 +278,60 @@ def ask_question(repo_id: str, payload: QuestionRequest, db: Session = Depends(g
         repository_id=repo.id,
         tenant_id=repo.tenant_id,
     ) for x in kept]
-    return AnswerOut(answer=answer, grounded=True, evidence=evidence, warnings=warnings)
+    return AnswerOut(answer=answer, grounded=not warnings, evidence=evidence, warnings=warnings)
+
+
+@app.post("/api/repos/{repo_id}/inspect-selection", response_model=AnswerOut)
+def inspect_selection(repo_id: str, payload: CodeEditRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    require_repo_access(repo, user)
+    snapshot = _read_snapshot(db, repo_id, payload.commit_sha)
+    row = db.scalar(select(CodeFile).where(CodeFile.snapshot_id == snapshot.id, CodeFile.path == payload.path))
+    if not row:
+        raise HTTPException(status_code=404, detail="File not found in snapshot")
+    lines = row.content.splitlines()
+    start, end = payload.line_start, payload.line_end
+    if not 1 <= start <= end <= len(lines) or end - start >= 200:
+        raise HTTPException(status_code=422, detail="Select 1–200 existing lines")
+    content = "\n".join(lines[start-1:end])
+    if len(content) > 50000:
+        raise HTTPException(status_code=422, detail="Selected code is too large")
+    block = {"path": row.path, "line_start": start, "line_end": end, "commit_sha": snapshot.commit_sha, "content": content}
+    try:
+        answer, warnings = synthesize(payload.instruction or "Explain this selected code, identify possible issues, and state what requires further verification.", [block])
+    except Exception as exc:
+        answer, warnings = "AI analysis unavailable; selected source remains available.", [provider_error(exc)]
+    return AnswerOut(answer=answer, grounded=not warnings, warnings=warnings, evidence=[EvidenceOut(path=row.path, line_start=start, line_end=end, commit_sha=snapshot.commit_sha, score=1.0, github_url=evidence_url(repo,snapshot.commit_sha,row.path,start,end))])
+
+
+@app.post("/api/repos/{repo_id}/code-edit")
+def code_edit(repo_id: str, payload: CodeEditRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    require_repo_access(repo, user)
+    snapshot = _read_snapshot(db, repo_id, payload.commit_sha)
+    row = db.scalar(select(CodeFile).where(CodeFile.snapshot_id == snapshot.id, CodeFile.path == payload.path))
+    if not row:
+        raise HTTPException(status_code=404, detail="File not found in snapshot")
+    if not 1 <= payload.line_start <= payload.line_end <= len(row.content.splitlines()) or payload.line_end - payload.line_start >= 200:
+        raise HTTPException(status_code=422, detail="Select 1–200 existing lines")
+    replacement = payload.replacement
+    if replacement is None:
+        if not payload.instruction.strip():
+            raise HTTPException(status_code=422, detail="Enter an edit instruction")
+        if not all((settings.llm_base_url, settings.llm_api_key, settings.llm_model)):
+            raise HTTPException(status_code=503, detail="LLM not configured; manual replacement remains available")
+        try:
+            replacement = propose_edit(row.path, row.content, payload.line_start, payload.line_end, payload.instruction)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=provider_error(exc)) from None
+    try:
+        return {**prepare_edit(row.path, row.content, payload.line_start, payload.line_end, replacement), "commit_sha": snapshot.commit_sha, "path": row.path}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @app.get("/api/repos/{repo_id}/timeline")

@@ -7,6 +7,7 @@ import FileTree from "./FileTree";
 import FileMap from "./FileMap";
 export { default as Graph } from "./DependencyMap";
 import Icon from "./Icon";
+import CodeEditPanel from "./CodeEdit";
 import { messageOf, ReadView, Status, useRead } from "./WorkspaceUI";
 
 function sourceUrl(repo: Repo, sha: string, path: string, start?: number | null, end?: number | null) {
@@ -142,7 +143,7 @@ function CodeReader({ file, location }: { file: FileDetail; location: SourceLoca
 function SourceFile({ id, location }: { id: string; location: SourceLocation }) {
   const { path, commit_sha } = location;
   const read = useRead(useCallback(() => api.file(id, path, commit_sha), [id, path, commit_sha]));
-  return <ReadView read={read}>{(file) => <CodeReader file={file} location={location} />}</ReadView>;
+  return <ReadView read={read}>{(file) => <><CodeReader file={file} location={location} /><CodeEditPanel key={`${path}:${commit_sha}:${location.line_start}:${location.line_end}`} id={id} file={file} location={location}/></>}</ReadView>;
 }
 
 export function Files({
@@ -233,35 +234,35 @@ export function Ask({
   const presets = [
     {
       id: "architecture",
-      label: vi ? "🏛️ Giải phẫu Kiến trúc" : "🏛️ Architecture Anatomy",
+      label: vi ? "Giải phẫu Kiến trúc" : "Architecture Anatomy",
       prompt: vi
         ? "Phân tích kiến trúc tổng thể của kho mã này: Luồng dữ liệu, entrypoint chính và cách các module kết nối với nhau."
         : "Analyze the overall architecture of this codebase: core data flow, main entrypoints, and how modules interconnect.",
     },
     {
       id: "security",
-      label: vi ? "🛡️ Giám định An ninh" : "🛡️ Security & Vulnerabilities",
+      label: vi ? "Giám định An ninh" : "Security & Vulnerabilities",
       prompt: vi
         ? "Kiểm tra an ninh và các điểm rủi ro tiềm ẩn: Luồng xác thực, kiểm tra input, quản lý secret và phân quyền truy cập."
         : "Audit security and potential vulnerabilities: authentication flows, input validation, secret handling, and access controls.",
     },
     {
       id: "impact",
-      label: vi ? "⚡ Rủi ro khi Sửa đổi" : "⚡ Blast Radius & Risk",
+      label: vi ? "Rủi ro khi Sửa đổi" : "Blast Radius & Risk",
       prompt: vi
         ? "Chỉ ra các module và hàm trọng yếu nhất có nguy cơ gây ảnh hưởng dây chuyền (Blast Radius) khi bị sửa đổi."
         : "Identify high-risk core modules and functions with the largest blast radius when modified.",
     },
     {
       id: "debt",
-      label: vi ? "🧹 Nợ kỹ thuật & Điểm nghẽn" : "🧹 Debt & Hotspots",
+      label: vi ? "Nợ kỹ thuật & Điểm nghẽn" : "Debt & Hotspots",
       prompt: vi
         ? "Xác định các tệp và hàm có độ phức tạp cao, quá nhiều phụ thuộc hoặc có dấu hiệu God Object cần refactor."
         : "Spot high-complexity files, excessive coupling, or God object patterns that require refactoring.",
     },
     {
       id: "provenance",
-      label: vi ? "📜 Lịch sử & Nguồn gốc" : "📜 Provenance & History",
+      label: vi ? "Lịch sử & Nguồn gốc" : "Provenance & History",
       prompt: vi
         ? "Truy vết sự tiến hóa của kho mã: Những thay đổi và tính năng quan trọng nhất được phát triển qua các commit."
         : "Trace repository evolution: key architectural changes and features added across historical commits.",
@@ -285,12 +286,12 @@ export function Ask({
   function handleSelectPreset(preset: (typeof presets)[0]) {
     setActivePreset(preset.id);
     setQuestion(preset.prompt);
-    executeInspection(preset.prompt);
+    setResult(null);
+    setError("");
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setActivePreset(null);
     executeInspection(question);
   }
 
@@ -307,8 +308,8 @@ export function Ask({
         <h2>{vi ? "Soi Mã Nguồn & Giám Định Chuyên Sâu" : "Deep Code & Architecture Inspection"}</h2>
         <p className="muted">
           {vi
-            ? "Mổ xẻ cú pháp AST, bóc tách cấu trúc hàm/lớp, thẩm tra bảo mật và đối chiếu bằng chứng mã nguồn tĩnh (không ảo giác)."
-            : "Deep AST dissection, function/class decomposition, security auditing, and static evidence verification without hallucinations."}
+            ? "Mổ xẻ cú pháp AST, bóc tách cấu trúc hàm/lớp, thẩm tra bảo mật và đối chiếu bằng chứng mã nguồn tĩnh (kết luận cần được kiểm tra)."
+            : "Deep AST dissection, function/class decomposition, security auditing, and static evidence verification with reviewable citations."}
         </p>
       </div>
 
@@ -327,7 +328,7 @@ export function Ask({
               onClick={() => handleSelectPreset(p)}
               disabled={busy}
             >
-              {p.label}
+              <Icon name={p.id === "architecture" ? "layers" : p.id === "security" ? "shieldAlert" : p.id === "impact" ? "graph" : p.id === "debt" ? "audit" : "clock"} size={16}/>{p.label}
             </button>
           ))}
         </div>
@@ -392,8 +393,8 @@ export function Ask({
               <span className={`status-pill ${result.grounded ? "grounded" : "ungrounded"}`}>
                 <Icon name={result.grounded ? "check" : "audit"} size={13} />
                 {result.grounded
-                  ? (vi ? "ĐÃ XÁC THỰC BẰNG CHỨNG (GROUNDED)" : "GROUNDED EVIDENCE VERIFIED")
-                  : (vi ? "CHƯA ĐỦ BẰNG CHỨNG XÁC THỰC" : "INSUFFICIENT EVIDENCE")}
+                  ? (vi ? "CÓ DẪN CHỨNG MÃ NGUỒN" : "SOURCE EVIDENCE AVAILABLE")
+                  : (vi ? "CẦN KIỂM TRA / AI CHƯA KHẢ DỤNG" : "REVIEW REQUIRED / AI UNAVAILABLE")}
               </span>
               {result.evidence.length > 0 && (
                 <span className="evidence-count">
@@ -437,13 +438,13 @@ export function Ask({
                       <span className="evidence-index">[E{i + 1}]</span>
                       <strong className="evidence-path">{e.path}</strong>
                       <span className="evidence-score" title={t.scoreLabel}>
-                        ★ {e.score.toFixed(3)}
+                        {e.score.toFixed(3)}
                       </span>
                     </div>
 
                     <div className="evidence-meta">
                       <span className="evidence-lines">
-                        Dòng L{e.line_start}–L{e.line_end}
+                        {vi ? "Dòng" : "Lines"} L{e.line_start}–L{e.line_end}
                       </span>
                       {e.symbol_name && (
                         <span className="evidence-symbol">
@@ -468,7 +469,7 @@ export function Ask({
                           title={vi ? "Mở trong trình duyệt tệp" : "Open in File Reader"}
                         >
                           <Icon name="file" size={13} />
-                          {vi ? "Mở trong tệp" : "Open in Reader"}
+                          {vi ? "Soi & sửa tại dòng" : "Inspect & edit lines"}
                         </button>
                       )}
                       <a
@@ -564,16 +565,28 @@ export function Findings({ repo, onOpen }: { repo: Repo; onOpen: (location: Sour
   const { t, locale } = useI18n();
   const read = useRead(useCallback(() => api.findings(repo.id), [repo.id]));
   const order = { high: 0, medium: 1, info: 2 };
+  const [severity, setSeverity] = useState("all");
+  const [filter, setFilter] = useState("");
+  const vi = locale === "vi";
+  const advice: Record<string,string> = {
+    large_file: vi ? "Xem trách nhiệm của tệp và chia theo chức năng nếu hợp lý; thêm test trước khi tách." : "Review responsibilities and split by cohesion if appropriate; add tests first.",
+    large_symbol: vi ? "Xác định các bước độc lập, tách hàm nhỏ và kiểm tra hành vi." : "Identify independent steps, extract smaller functions and verify behavior.",
+    high_out_coupling: vi ? "Kiểm tra ranh giới module và giảm các phụ thuộc không cần thiết." : "Review module boundaries and unnecessary dependencies.",
+    dependency_cycle: vi ? "Xem đường dẫn vòng lặp, cân nhắc tách interface hoặc đảo chiều phụ thuộc." : "Inspect the cycle; consider extracting an interface or inverting a dependency."
+  };
 
   return (
     <section className="panel">
       <h2>{t.findingsHeading}</h2>
       <p className="muted">{t.findingsSubhead}</p>
+      <p className="notice">{vi ? "Đây là dấu hiệu phân tích tĩnh, không phải kết luận chắc chắn về lỗi." : "These are static-analysis signals, not confirmed defects."}</p>
+      <div className="graph-tools"><label>{vi?"Mức độ":"Severity"} <select value={severity} onChange={e=>setSeverity(e.target.value)}><option value="all">{vi?"Tất cả":"All"}</option><option value="high">{vi?"Cao":"High"}</option><option value="medium">{vi?"Vừa":"Medium"}</option><option value="info">{vi?"Thông tin":"Info"}</option></select></label><input type="search" aria-label={vi?"Tìm dấu hiệu":"Search findings"} placeholder={vi?"Tìm theo tệp hoặc tên":"Filter by file or title"} value={filter} onChange={e=>setFilter(e.target.value)}/></div>
       <ReadView read={read}>
         {(rows) =>
-          rows.length ? (
+          rows.some(f=>(severity==="all"||f.severity===severity)&&`${f.title} ${f.evidence_path||""}`.toLowerCase().includes(filter.toLowerCase())) ? (
             <ul className="findings">
               {[...rows]
+                .filter(f=>(severity==="all"||f.severity===severity)&&`${f.title} ${f.evidence_path||""}`.toLowerCase().includes(filter.toLowerCase()))
                 .sort((a, b) => order[a.severity] - order[b.severity])
                 .map((f) => (
                   <li key={f.id}>
@@ -585,8 +598,10 @@ export function Findings({ repo, onOpen }: { repo: Repo; onOpen: (location: Sour
                       </span>
                       {(t.status as Record<string, string>)[f.severity] || f.severity}
                     </span>
-                    <h3>{f.title}</h3>
-                    <p>{f.description}</p>
+                    <h3>{vi ? (({large_file:"Tệp lớn",large_symbol:"Hàm/lớp lớn",high_out_coupling:"Nhiều phụ thuộc",dependency_cycle:"Vòng phụ thuộc"} as Record<string,string>)[f.kind] || f.title) : f.title}</h3>
+                    {vi && f.evidence_path && <code>{f.evidence_path}</code>}
+                    <p>{vi && f.kind === "large_file" ? `Tệp có ${f.meta.line_count} dòng. Kích thước không tự chứng minh thiết kế kém.` : vi && f.kind === "large_symbol" ? `Ký hiệu ${f.meta.symbol} có ${f.meta.lines} dòng.` : vi && f.kind === "high_out_coupling" ? `Có ${f.meta.out_degree} phụ thuộc đi (ngưỡng ${f.meta.threshold}).` : f.description}</p>
+                    {advice[f.kind] && <p className="finding-advice"><strong>{vi?"Hướng xử lý: ":"Suggested review: "}</strong>{advice[f.kind]}</p>}
                     {f.excerpt?.length > 0 && (
                       <pre className="snippet">
                         {f.excerpt

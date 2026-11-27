@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useId, useMemo, useState } from "react";
-import { api, type GraphData, type Repo } from "../../lib/api";
+import { api, type GraphData, type Repo, type SourceLocation } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
 import { ReadView, useRead } from "./WorkspaceUI";
 
@@ -76,18 +76,20 @@ function MapView({
   repo,
   data,
   focus,
-  locate,
+  locate, onOpen,
 }: {
   repo: Repo;
   data: GraphData;
   focus: string;
   locate: (p: string) => void;
+  onOpen?: (source: SourceLocation) => void;
 }) {
   const { t, locale } = useI18n();
   const vi = locale === "vi";
   const [search, setSearch] = useState(focus),
     [selected, setSelected] = useState(focus),
     [hover, setHover] = useState("");
+  const [zoom, setZoom] = useState(1);
   const impact = useRead(
     useCallback(
       () => (selected ? api.impact(repo.id, selected, 2, data.snapshot_sha) : Promise.resolve(null)),
@@ -139,9 +141,10 @@ function MapView({
           ))}
         </datalist>
       </form>
+      <div className="graph-tools"><button className="quiet small" onClick={()=>locate("")}>{vi?"Toàn bộ đồ thị":"Overview"}</button><button className="quiet small" aria-label="Zoom out" disabled={zoom<=1} onClick={()=>setZoom(z=>Math.max(1,z-.25))}>−</button><span>{Math.round(zoom*100)}%</span><button className="quiet small" aria-label="Zoom in" disabled={zoom>=2.5} onClick={()=>setZoom(z=>Math.min(2.5,z+.25))}>+</button><button className="quiet small" onClick={()=>setZoom(1)}>{vi?"Đặt lại":"Reset"}</button>{selected && onOpen && data.all_paths.includes(selected) && <button className="quiet small" onClick={()=>onOpen({path:selected,commit_sha:data.snapshot_sha})}>{vi?"Mở mã nguồn":"Open source"}</button>}</div>
       <figure className="dep-figure">
         <svg
-          viewBox="0 0 680 306"
+          viewBox={`${340-340/zoom} ${153-153/zoom} ${680/zoom} ${306/zoom}`}
           aria-label={vi ? "Bản đồ phụ thuộc tương tác" : "Interactive dependency map"}
         >
           <defs>
@@ -256,7 +259,7 @@ function MapView({
                     <ul>
                       {result.affected.map((p) => (
                         <li key={p}>
-                          <code>{p}</code>
+                          <code>{p}</code>{onOpen && <button className="text-action" onClick={()=>onOpen({path:p,commit_sha:data.snapshot_sha})}>{vi?"Mở tệp":"Open file"}</button>}
                         </li>
                       ))}
                     </ul>
@@ -289,7 +292,7 @@ function MapView({
     </>
   );
 }
-export default function Graph({ repo }: { repo: Repo }) {
+export default function Graph({ repo, onOpen }: { repo: Repo; onOpen?: (source: SourceLocation) => void }) {
   const { t } = useI18n();
   const [focus, setFocus] = useState("");
   const sha = repo.snapshot!.commit_sha;
@@ -299,7 +302,7 @@ export default function Graph({ repo }: { repo: Repo }) {
       <h2>{t.graphHeading}</h2>
       <p className="muted">{t.graphSubhead}</p>
       <ReadView read={read}>
-        {(data) => <MapView key={focus} {...{ repo, data, focus }} locate={setFocus} />}
+        {(data) => <MapView key={focus} {...{ repo, data, focus }} locate={setFocus} onOpen={onOpen} />}
       </ReadView>
     </section>
   );

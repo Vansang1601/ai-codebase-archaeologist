@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, type AskResult, type SourceLocation, type Repo } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
 import { messageOf } from "./WorkspaceUI";
+import Icon from "./Icon";
 
 function sourceUrl(repo: Repo, sha: string, path: string, start?: number | null, end?: number | null) {
   const file = path.split("/").map(encodeURIComponent).join("/");
@@ -131,16 +132,16 @@ export default function FloatingChat({ repo, repos = [], signedIn = false, onSel
 
   const quickPrompts = isVi
     ? [
-        "🏛️ Kiến trúc tổng thể và các module chính?",
-        "🛡️ Luồng xác thực và an ninh dữ liệu?",
-        "⚡ Những hàm có nguy cơ ảnh hưởng lớn khi sửa?",
-        "🧹 Phát hiện điểm nghẽn nợ kỹ thuật cần tối ưu?",
+        "Kiến trúc tổng thể và các module chính?",
+        "Luồng xác thực và an ninh dữ liệu?",
+        "Những hàm có nguy cơ ảnh hưởng lớn khi sửa?",
+        "Phát hiện điểm nghẽn nợ kỹ thuật cần tối ưu?",
       ]
     : [
-        "🏛️ What is the overall architecture and data flow?",
-        "🛡️ How are authentication and security handled?",
-        "⚡ Which modules have the largest blast radius?",
-        "🧹 What are the main technical debt hotspots?",
+        "What is the overall architecture and data flow?",
+        "How are authentication and security handled?",
+        "Which modules have the largest blast radius?",
+        "What are the main technical debt hotspots?",
       ];
 
   return (
@@ -152,14 +153,15 @@ export default function FloatingChat({ repo, repos = [], signedIn = false, onSel
           className="floating-chat-trigger"
           ref={triggerRef}
           aria-haspopup="dialog"
-          aria-label={isVi ? "Mở công cụ soi mã nguồn AI" : "Open AI Code Inspector"}
-          title={isVi ? "AI Soi Mã Nguồn & Giám Định" : "AI Code Inspector"}
+          aria-label={isVi ? "Mở công cụ tra cứu mã nguồn" : "Open code lookup"}
+          title={isVi ? "Tra cứu mã nguồn" : "Code lookup"}
           onClick={() => onToggle(true)}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="7.5" />
+            <path d="m16 16 4.5 4.5" />
+            <path d="m8.5 8.5-2 2 2 2m4-4 2 2-2 2" />
           </svg>
-          <span className="trigger-label">{isVi ? "Soi Code AI" : "AI Inspect"}</span>
         </button>
       )}
 
@@ -262,7 +264,7 @@ export default function FloatingChat({ repo, repos = [], signedIn = false, onSel
                       {m.result && (
                         <div className={`grounded-badge ${m.result.grounded ? "grounded" : "ungrounded"}`}>
                           <span className="dot" />
-                          <span>{m.result.grounded ? (isVi ? "Đã đối chiếu mã nguồn" : "Grounded Evidence") : (isVi ? "Thiếu bằng chứng tin cậy" : "Insufficient Evidence")}</span>
+                          <span>{m.result.grounded ? (isVi ? "Đã đối chiếu mã nguồn" : "Grounded Evidence") : (isVi ? "Cần kiểm tra / AI chưa khả dụng" : "Review required / AI unavailable")}</span>
                         </div>
                       )}
                       <div className="answer-text">{m.content}</div>
@@ -271,7 +273,7 @@ export default function FloatingChat({ repo, repos = [], signedIn = false, onSel
                         <div className="chat-warnings">
                           {m.result.warnings.map((w, idx) => (
                             <div key={idx} className="warning-item">
-                              ⚠ {w}
+                              <Icon name="shieldAlert" size={14}/> {w}
                             </div>
                           ))}
                         </div>

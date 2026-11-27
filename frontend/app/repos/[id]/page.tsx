@@ -55,7 +55,7 @@ function Workspace({ id }: { id: string }) {
   const tabDefs = [
     { label: t.tabOverview, Component: Overview, icon: "overview" },
     { label: t.tabFiles, Component: Files, icon: "file" },
-    { label: t.tabAsk, Component: Ask, icon: "quote" },
+    { label: vi ? "AI Soi Code" : "AI Inspector", Component: Ask, icon: "inspect" },
     { label: t.tabTimeline, Component: Timeline, icon: "clock" },
     { label: t.tabGraph, Component: Graph, icon: "graph" },
     { label: t.tabFindings, Component: Findings, icon: "audit" },
@@ -212,7 +212,8 @@ function Workspace({ id }: { id: string }) {
             </nav>
 
           </div>
-          <ActivePanel key={repo.snapshot.id} repo={repo} location={location} onOpen={openSource} cited={cited} />
+          <div hidden={tab !== 2}><Ask key={repo.snapshot.id} repo={repo} onOpen={openSource}/></div>
+          {tab !== 2 && <ActivePanel key={repo.snapshot.id} repo={repo} location={location} onOpen={openSource} cited={cited} />}
         </>
       ) : (
         <div className="panel">

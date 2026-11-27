@@ -90,6 +90,8 @@ export interface AskResult {
   warnings?: string[];
 }
 
+export interface CodeEdit { before: string; after: string; content: string; patch: string; validation: string; commit_sha: string; path: string }
+
 export interface SourceLocation {
   path: string;
   commit_sha: string;
@@ -283,6 +285,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question, top_k: 5, history: history || [] })
     }),
+
+  inspectSelection: (id: string, data: {path: string; commit_sha: string; line_start: number; line_end: number; instruction: string}) => request<AskResult>(`/api/repos/${id}/inspect-selection`, {method: "POST", body: JSON.stringify(data)}),
+
+  codeEdit: (id: string, data: {path: string; commit_sha: string; line_start: number; line_end: number; instruction?: string; replacement?: string}) => request<CodeEdit>(`/api/repos/${id}/code-edit`, {method: "POST", body: JSON.stringify(data)}),
 
   timeline: (id: string) => request<TimelineCommit[]>(`/api/repos/${id}/timeline?limit=100`),
 

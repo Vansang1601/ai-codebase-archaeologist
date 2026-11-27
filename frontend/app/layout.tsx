@@ -2,6 +2,7 @@ import React from "react";
 import type { Metadata } from "next";
 import "./globals.css";
 import "./excavation.css";
+import "./polish.css";
 import Header from "./components/Header";
 import { ChatProvider } from "./components/ChatProvider";
 import { I18nProvider } from "../lib/i18n";

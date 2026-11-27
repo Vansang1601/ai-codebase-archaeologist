@@ -46,13 +46,13 @@ const content: Record<"en" | "vi", Copy> = {
       {
         icon: "refresh",
         title: "Analysis is stuck or timed out",
-        body: "Large repositories (>1,000 files) may take 1-2 minutes for deep AST parsing.",
+        body: "Indexing time depends on repository size, network and parser workload.",
         solution: "Click 'Resync' on the repository header. If it fails, check that the GitHub URL is public and valid.",
       },
       {
         icon: "search",
         title: "Answer says 'Insufficient Evidence'",
-        body: "The AI Code Inspector enforces strict evidence-first gating to prevent hallucinations.",
+        body: "The AI Code Inspector uses source evidence to reduce unsupported answers.",
         solution: "Be specific: mention an exact file path, function name, or module. The AI only answers when cited code verifies it.",
       },
       {
@@ -64,8 +64,8 @@ const content: Record<"en" | "vi", Copy> = {
       {
         icon: "shield",
         title: "AI Analysis is disabled or unavailable",
-        body: "The LLM API key has not been configured in your environment.",
-        solution: "Add your Gemini or OpenAI API key to your .env file and restart the stack. See the User Guide for step-by-step instructions.",
+        body: "The API key, model, quota, or provider connection may be invalid.",
+        solution: "Add your Gemini or OpenAI API key to your .env file and recreate the backend container. See the User Guide for step-by-step instructions.",
       },
     ],
     guide: "View Step-by-Step User Guide",
@@ -93,13 +93,13 @@ const content: Record<"en" | "vi", Copy> = {
       {
         icon: "refresh",
         title: "Phân tích bị treo hoặc quá thời gian",
-        body: "Kho mã lớn (>1.000 files) cần 1-2 phút để bóc tách cây cú pháp trừu tượng AST.",
+        body: "Thời gian phân tích phụ thuộc kích thước kho mã, mạng và tải bộ phân tích.",
         solution: "Bấm 'Đồng bộ lại' ở đầu trang kho mã. Kiểm tra xem đường dẫn GitHub có phải là công khai hay không.",
       },
       {
         icon: "search",
         title: "AI báo 'Chưa đủ bằng chứng'",
-        body: "Hệ thống tuân thủ nguyên lý Evidence-first, chặn đứng triệt để ảo giác (hallucination).",
+        body: "Hệ thống tuân thủ nguyên lý Evidence-first, giảm nguy cơ trả lời thiếu căn cứ.",
         solution: "Hãy hỏi cụ thể: nêu rõ tên file, tên class hoặc hàm. AI chỉ kết luận khi có bằng chứng code xác thực.",
       },
       {
@@ -111,8 +111,8 @@ const content: Record<"en" | "vi", Copy> = {
       {
         icon: "shield",
         title: "Tính năng AI chưa hoạt động",
-        body: "API Key mô hình LLM chưa được thiết lập trong biến môi trường hệ thống.",
-        solution: "Mở tệp .env, điền Gemini hoặc OpenAI API key và khởi động lại. Xem mục Hướng dẫn để biết chi tiết từng bước.",
+        body: "Có thể thiếu API Key, sai tên mô hình, hết hạn mức hoặc lỗi kết nối nhà cung cấp.",
+        solution: "Mở tệp .env, điền Gemini hoặc OpenAI API key và tạo lại container backend. Xem mục Hướng dẫn để biết chi tiết từng bước.",
       },
     ],
     guide: "Xem Hướng Dẫn Sử Dụng Từng Bước",
