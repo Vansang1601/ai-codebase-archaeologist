@@ -215,21 +215,66 @@ export function Files({
   );
 }
 
-export function Ask({ repo }: { repo: Repo }) {
-  const { t } = useI18n();
+export function Ask({
+  repo,
+  onOpen,
+}: {
+  repo: Repo;
+  onOpen?: (location: SourceLocation) => void;
+}) {
+  const { t, locale } = useI18n();
+  const vi = locale === "vi";
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<AskResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  async function ask(event: FormEvent) {
-    event.preventDefault();
-    if (busy || question.trim().length < 2) return;
+  const presets = [
+    {
+      id: "architecture",
+      label: vi ? "🏛️ Giải phẫu Kiến trúc" : "🏛️ Architecture Anatomy",
+      prompt: vi
+        ? "Phân tích kiến trúc tổng thể của kho mã này: Luồng dữ liệu, entrypoint chính và cách các module kết nối với nhau."
+        : "Analyze the overall architecture of this codebase: core data flow, main entrypoints, and how modules interconnect.",
+    },
+    {
+      id: "security",
+      label: vi ? "🛡️ Giám định An ninh" : "🛡️ Security & Vulnerabilities",
+      prompt: vi
+        ? "Kiểm tra an ninh và các điểm rủi ro tiềm ẩn: Luồng xác thực, kiểm tra input, quản lý secret và phân quyền truy cập."
+        : "Audit security and potential vulnerabilities: authentication flows, input validation, secret handling, and access controls.",
+    },
+    {
+      id: "impact",
+      label: vi ? "⚡ Rủi ro khi Sửa đổi" : "⚡ Blast Radius & Risk",
+      prompt: vi
+        ? "Chỉ ra các module và hàm trọng yếu nhất có nguy cơ gây ảnh hưởng dây chuyền (Blast Radius) khi bị sửa đổi."
+        : "Identify high-risk core modules and functions with the largest blast radius when modified.",
+    },
+    {
+      id: "debt",
+      label: vi ? "🧹 Nợ kỹ thuật & Điểm nghẽn" : "🧹 Debt & Hotspots",
+      prompt: vi
+        ? "Xác định các tệp và hàm có độ phức tạp cao, quá nhiều phụ thuộc hoặc có dấu hiệu God Object cần refactor."
+        : "Spot high-complexity files, excessive coupling, or God object patterns that require refactoring.",
+    },
+    {
+      id: "provenance",
+      label: vi ? "📜 Lịch sử & Nguồn gốc" : "📜 Provenance & History",
+      prompt: vi
+        ? "Truy vết sự tiến hóa của kho mã: Những thay đổi và tính năng quan trọng nhất được phát triển qua các commit."
+        : "Trace repository evolution: key architectural changes and features added across historical commits.",
+    },
+  ];
+
+  async function executeInspection(promptText: string) {
+    if (busy || promptText.trim().length < 2) return;
     setBusy(true);
     setError("");
     setResult(null);
     try {
-      setResult(await api.ask(repo.id, question.trim()));
+      setResult(await api.ask(repo.id, promptText.trim()));
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -237,66 +282,218 @@ export function Ask({ repo }: { repo: Repo }) {
     }
   }
 
+  function handleSelectPreset(preset: (typeof presets)[0]) {
+    setActivePreset(preset.id);
+    setQuestion(preset.prompt);
+    executeInspection(preset.prompt);
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setActivePreset(null);
+    executeInspection(question);
+  }
+
   return (
-    <section className="panel">
-      <h2>{t.askHeading}</h2>
-      <form onSubmit={ask} className="form-stack">
-        <label htmlFor="question">{t.askPromptLabel}</label>
-        <textarea
-          id="question"
-          rows={3}
-          minLength={2}
-          maxLength={2000}
-          required
-          readOnly={busy}
-          value={question}
-          onChange={(e) => {
-            setQuestion(e.target.value);
-            setResult(null);
-            setError("");
-          }}
-          placeholder={t.askPlaceholder}
-        />
-        <button disabled={busy || question.trim().length < 2}>{busy ? t.btnAsking : t.btnAsk}</button>
-      </form>
-      {error && (
-        <p className="notice error" role="alert">
-          {error}
+    <section className="panel inspector-panel">
+      <div className="inspector-head">
+        <div className="inspector-title-row">
+          <span className="inspector-badge">
+            <Icon name="sparkles" size={14} />
+            {vi ? "AI CODE INSPECTOR" : "AI CODE INSPECTOR"}
+          </span>
+          <span className="inspector-tag">Evidence-First Grounded Engine</span>
+        </div>
+        <h2>{vi ? "Soi Mã Nguồn & Giám Định Chuyên Sâu" : "Deep Code & Architecture Inspection"}</h2>
+        <p className="muted">
+          {vi
+            ? "Mổ xẻ cú pháp AST, bóc tách cấu trúc hàm/lớp, thẩm tra bảo mật và đối chiếu bằng chứng mã nguồn tĩnh (không ảo giác)."
+            : "Deep AST dissection, function/class decomposition, security auditing, and static evidence verification without hallucinations."}
         </p>
-      )}
-      {result && (
-        <div className="result" aria-live="polite">
-          <h3>{result.grounded ? t.resultGrounded : t.resultUngrounded}</h3>
-          <p className="answer">{result.answer}</p>
-          {result.warnings?.map((w, i) => (
-            <p className="notice caution" key={i}>
-              {w}
-            </p>
+      </div>
+
+      {/* Preset Inspection Modes */}
+      <div className="inspector-presets-wrap">
+        <span className="presets-label">
+          <Icon name="zap" size={13} />
+          {vi ? "Chế độ giám định tức thì:" : "Instant Inspection Modes:"}
+        </span>
+        <div className="inspector-presets">
+          {presets.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`preset-chip${activePreset === p.id ? " active" : ""}`}
+              onClick={() => handleSelectPreset(p)}
+              disabled={busy}
+            >
+              {p.label}
+            </button>
           ))}
-          {result.evidence.length > 0 && (
-            <ol className="evidence-list">
-              {result.evidence.map((e, i) => (
-                <li key={i}>
-                  <a
-                    href={sourceUrl(repo, e.commit_sha, e.path, e.line_start, e.line_end)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    [E{i + 1}] {e.path} · L{e.line_start}–L{e.line_end}
-                  </a>
-                  <small>
-                    {e.commit_sha.slice(0, 8)} · {t.scoreLabel} {e.score.toFixed(3)}
-                    {e.symbol_name && " · " + e.symbol_name}
-                  </small>
-                </li>
+        </div>
+      </div>
+
+      {/* Custom Inspection Form */}
+      <form onSubmit={handleSubmit} className="form-stack inspector-form">
+        <label htmlFor="inspector-input" className="inspector-input-label">
+          <Icon name="inspect" size={14} />
+          {vi ? "Nội dung giám định cụ thể:" : "Specific Code Inspection Query:"}
+        </label>
+        <div className="inspector-input-box">
+          <textarea
+            id="inspector-input"
+            rows={3}
+            minLength={2}
+            maxLength={2000}
+            required
+            readOnly={busy}
+            value={question}
+            onChange={(e) => {
+              setQuestion(e.target.value);
+              setError("");
+            }}
+            placeholder={
+              vi
+                ? "Ví dụ: Module nào xử lý liên kết kho GitHub và lưu database? Chỉ ra các lỗ hổng tiềm ẩn..."
+                : "e.g., Which module handles GitHub connections and database persistence? Identify potential risks..."
+            }
+          />
+          <button
+            type="submit"
+            className="primary inspector-submit-btn"
+            disabled={busy || question.trim().length < 2}
+          >
+            {busy ? (
+              <>
+                <span className="spinner" />
+                {vi ? "Đang soi mã..." : "Inspecting..."}
+              </>
+            ) : (
+              <>
+                <Icon name="sparkles" size={15} />
+                {vi ? "Bắt đầu Giám định" : "Run Inspection"}
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {error && (
+        <div className="notice error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {/* Inspection Dossier Results */}
+      {result && (
+        <div className="inspector-dossier" aria-live="polite">
+          <div className="dossier-header">
+            <div className="dossier-status">
+              <span className={`status-pill ${result.grounded ? "grounded" : "ungrounded"}`}>
+                <Icon name={result.grounded ? "check" : "audit"} size={13} />
+                {result.grounded
+                  ? (vi ? "ĐÃ XÁC THỰC BẰNG CHỨNG (GROUNDED)" : "GROUNDED EVIDENCE VERIFIED")
+                  : (vi ? "CHƯA ĐỦ BẰNG CHỨNG XÁC THỰC" : "INSUFFICIENT EVIDENCE")}
+              </span>
+              {result.evidence.length > 0 && (
+                <span className="evidence-count">
+                  {result.evidence.length} {vi ? "bằng chứng đối chiếu" : "cited evidences"}
+                </span>
+              )}
+            </div>
+            {repo.snapshot && (
+              <span className="dossier-sha">
+                <Icon name="commit" size={12} />
+                <code>{repo.snapshot.commit_sha.slice(0, 8)}</code>
+              </span>
+            )}
+          </div>
+
+          <div className="dossier-content">
+            <h3 className="dossier-heading">
+              {vi ? "Kết quả Giám định Kỹ thuật:" : "Technical Inspection Findings:"}
+            </h3>
+            <div className="dossier-answer">{result.answer}</div>
+          </div>
+
+          {result.warnings && result.warnings.length > 0 && (
+            <div className="dossier-warnings">
+              {result.warnings.map((w, i) => (
+                <p className="notice caution" key={i}>
+                  {w}
+                </p>
               ))}
-            </ol>
+            </div>
+          )}
+
+          {/* Evidence Citations Table / Grid */}
+          {result.evidence.length > 0 && (
+            <div className="dossier-evidences">
+              <h4>{vi ? "Hồ sơ Bằng chứng Đối chiếu (Citing Evidences):" : "Verified Code Evidences:"}</h4>
+              <div className="evidence-grid">
+                {result.evidence.map((e, i) => (
+                  <div key={i} className="evidence-card">
+                    <div className="evidence-card-head">
+                      <span className="evidence-index">[E{i + 1}]</span>
+                      <strong className="evidence-path">{e.path}</strong>
+                      <span className="evidence-score" title={t.scoreLabel}>
+                        ★ {e.score.toFixed(3)}
+                      </span>
+                    </div>
+
+                    <div className="evidence-meta">
+                      <span className="evidence-lines">
+                        Dòng L{e.line_start}–L{e.line_end}
+                      </span>
+                      {e.symbol_name && (
+                        <span className="evidence-symbol">
+                          <code>{e.symbol_name}</code>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="evidence-actions">
+                      {onOpen && (
+                        <button
+                          type="button"
+                          className="quiet small"
+                          onClick={() =>
+                            onOpen({
+                              path: e.path,
+                              commit_sha: e.commit_sha,
+                              line_start: e.line_start,
+                              line_end: e.line_end,
+                            })
+                          }
+                          title={vi ? "Mở trong trình duyệt tệp" : "Open in File Reader"}
+                        >
+                          <Icon name="file" size={13} />
+                          {vi ? "Mở trong tệp" : "Open in Reader"}
+                        </button>
+                      )}
+                      <a
+                        className="quiet small external-link"
+                        href={sourceUrl(repo, e.commit_sha, e.path, e.line_start, e.line_end)}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={vi ? "Xem trên GitHub" : "View on GitHub"}
+                      >
+                        <Icon name="github" size={13} />
+                        GitHub
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
     </section>
   );
 }
+
+export const CodeInspector = Ask;
 
 export function Timeline({ repo }: { repo: Repo }) {
   const { t, locale } = useI18n();

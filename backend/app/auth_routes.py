@@ -105,6 +105,7 @@ class TokenResponse(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     name: str | None = None
+    email: str | None = None
     preferred_locale: str | None = None
 
 
@@ -658,11 +659,21 @@ def update_profile(
     get_user_tenant_id(user)
     if payload.name is not None:
         user.name = payload.name.strip() or None
+    if payload.email is not None:
+        new_email = payload.email.strip().lower()
+        if new_email and new_email != user.email:
+            import re
+            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", new_email):
+                raise HTTPException(status_code=400, detail="Địa chỉ email không đúng định dạng.")
+            existing_user = db.scalar(select(User).where(User.email == new_email, User.id != user.id))
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email này đã được sử dụng bởi một tài khoản khác.")
+            user.email = new_email
     if payload.preferred_locale is not None and payload.preferred_locale in ("en", "vi"):
         user.preferred_locale = payload.preferred_locale
     db.commit()
     db.refresh(user)
-    return {"status": "ok", "user_id": user.id, "name": user.name, "preferred_locale": user.preferred_locale}
+    return {"status": "ok", "user_id": user.id, "name": user.name, "email": user.email, "preferred_locale": user.preferred_locale}
 
 
 # ---------------------------------------------------------------------------

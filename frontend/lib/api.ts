@@ -336,8 +336,8 @@ export const api = {
 
   me: () => request<UserProfile>("/api/auth/me"),
 
-  updateProfile: (data: { name?: string; preferred_locale?: string }) =>
-    request<{ status: string; user_id: string; name?: string; preferred_locale?: string }>("/api/auth/me", {
+  updateProfile: (data: { name?: string; email?: string; preferred_locale?: string }) =>
+    request<{ status: string; user_id: string; name?: string; email?: string; preferred_locale?: string }>("/api/auth/me", {
       method: "PATCH",
       body: JSON.stringify(data),
     }),

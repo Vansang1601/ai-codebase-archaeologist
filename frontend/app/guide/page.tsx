@@ -15,6 +15,12 @@ type Copy = {
   areasTitle: string;
   areasLead: string;
   areas: Item[];
+  inspectorTitle: string;
+  inspectorLead: string;
+  inspectorModes: { title: string; desc: string; sample: string }[];
+  apiGuideTitle: string;
+  apiGuideLead: string;
+  apiSteps: { step: string; title: string; desc: string; code?: string }[];
   askTitle: string;
   askLead: string;
   askTips: string[];
@@ -29,192 +35,412 @@ type Copy = {
 
 const content: Record<"en" | "vi", Copy> = {
   en: {
-    intro: "From a GitHub URL to the exact lines of code behind a result, in four steps.",
-    stepsTitle: "Your first analysis",
+    intro: "Step-by-step technical guide for deep codebase archaeology, evidence verification, and configuring custom LLM APIs.",
+    stepsTitle: "Complete 4-Step Analysis Workflow",
     steps: [
-      ["Choose a repository", "On the home page, paste a public GitHub URL such as https://github.com/pallets/click, or pick an example. Sign in first if you want the analysis saved in your library."],
-      ["Start the analysis", "Select Analyze. The workspace shows each phase while the repository is downloaded, parsed and indexed at one specific commit."],
-      ["Read the results", "Switch between the tabs to read code, browse history, follow dependencies and review findings."],
-      ["Check an answer", "Open the chat button and ask a question. Select a citation to highlight its lines in the explorer, or use the GitHub link beside it."],
+      ["Step 1: Ingest Repository", "Paste any public GitHub repository URL (e.g., https://github.com/pallets/click). Sign in with Google, GitHub, or Magic Link to automatically save the repository and its immutable snapshots in your personal workspace."],
+      ["Step 2: AST Extraction & Indexing", "The background worker performs a shallow clone, captures the exact commit SHA, extracts abstract syntax trees (functions, classes, imports), detects dependency graphs, and slices code into semantic chunks."],
+      ["Step 3: Run AI Deep Code Inspection", "Select the 'AI Q&A' tab or choose one of the 5 instant inspection modes: Architecture Anatomy, Security & Vulnerabilities, Blast Radius Impact, Debt Hotspots, or Historical Provenance."],
+      ["Step 4: Verify Citing Evidences", "Click any citation badge [E1], [E2] to jump directly into the source code reader at the exact highlighted line numbers, or open the immutable commit blob on GitHub."],
     ],
-    action: "Analyze a repository",
-    beforeTitle: "Before you start",
+    action: "Analyze a Repository Now",
+    beforeTitle: "Pre-Flight Checklist",
     before: [
-      ["You need", "A public GitHub repository URL in the form https://github.com/owner/repo."],
-      ["Signing in", "Optional. It lets you reopen your repositories from the Library."],
-      ["Progress", "The job moves through queued, cloning, scanning, parsing, indexing, history, Pull Requests and technical debt. Larger repositories take longer."],
+      ["Repository URL", "Must be a valid, public GitHub repository in the format https://github.com/owner/repo."],
+      ["Authentication", "Recommended. Signing in enables persistent workspace libraries and session management."],
+      ["Parser Scope", "Python is parsed with full AST; JavaScript/TypeScript with module symbols; other languages are text-indexed."],
+      ["Safety Boundary", "Code is strictly analyzed as text. No user code is ever executed or modified."],
     ],
-    areasTitle: "Tour of the results page",
-    areasLead: "Each tab answers a different question about the same commit.",
+    areasTitle: "7 Specialized Analysis Panels",
+    areasLead: "Every tab investigates a unique dimension of the exact same commit snapshot.",
     areas: [
-      { icon: "overview", title: "Overview", body: "Totals for files, symbols, dependencies, indexed chunks and Pull Requests, plus the branch and the commit SHA that was analyzed." },
-      { icon: "file", title: "Source Code", body: "Filter files by path, select one and read it with line numbers. Start here to confirm what a citation refers to." },
-      { icon: "clock", title: "Timeline", body: "The most recent commits collected for the repository, with author and date. Use it to see when and why an area changed." },
-      { icon: "graph", title: "Dependencies", body: "Enter a file path and choose the impact check. It lists files that depend on it, up to two steps away, next to the resolved internal imports." },
-      { icon: "audit", title: "Technical Debt", body: "Findings for large files and functions, high coupling and dependency cycles. Each one lists its evidence so you can verify it." },
-      { icon: "branch", title: "Pull Requests", body: "Pull Request metadata from GitHub, including state and dates, to connect changes with the discussion behind them." },
+      { icon: "overview", title: "Overview", body: "Total file counts, symbols, dependencies, chunks, Pull Requests, and revision trends." },
+      { icon: "file", title: "Source Code & Explorer", body: "Interactive file tree with line numbers, syntax view, and citation highlighting." },
+      { icon: "sparkles", title: "AI Code Inspector", body: "Deep AST code dissection, security audits, and risk assessment backed by verified evidence." },
+      { icon: "clock", title: "Commit Timeline", body: "Visual chronological strata of commit changes, author attributions, and additions/deletions." },
+      { icon: "graph", title: "Dependency Graph", body: "Interactive dependency graph mapping internal imports and multi-hop impact blast radiuses." },
+      { icon: "audit", title: "Technical Debt", body: "Automated rule detection for God files, God functions, and circular import cycles." },
+      { icon: "branch", title: "Pull Requests", body: "Correlates commit changes with original GitHub pull request discussions and merge metadata." },
     ],
-    askTitle: "Ask better questions",
-    askLead: "The chat answers from the code indexed in this snapshot, so specific questions work best.",
+    inspectorTitle: "AI Code Inspector vs Generic Chatbot",
+    inspectorLead: "Archaeologist is an evidence-first code audit engine, not a casual conversational chatbot.",
+    inspectorModes: [
+      {
+        title: "🏛️ Architecture Anatomy",
+        desc: "Dissects entrypoints, data flow pathways, and cross-module communication without hallucinating.",
+        sample: "Analyze the core data pipeline and show which module manages database transactions.",
+      },
+      {
+        title: "🛡️ Security & Vulnerability Audit",
+        desc: "Audits authentication flow, token permissions, input validation, and potential secret leaks.",
+        sample: "Inspect user authentication and identify where external requests are sanitized.",
+      },
+      {
+        title: "⚡ Blast Radius & Change Risk",
+        desc: "Pinpoints high-risk functions where modifying code will ripple across multiple dependents.",
+        sample: "Which files will break if we modify the signature of core.py:Command?",
+      },
+      {
+        title: "🧹 Technical Debt Hotspots",
+        desc: "Detects monolithic files (>1000 lines), cyclomatic complexity spikes, and tight coupling.",
+        sample: "Identify the top 3 files with excessive coupling that require refactoring.",
+      },
+      {
+        title: "📜 Historical Provenance",
+        desc: "Traces the evolution of key algorithms across commit milestones and Pull Request rationales.",
+        sample: "Why was the streaming parser rewritten in commit v2.1?",
+      },
+    ],
+    apiGuideTitle: "Step-by-Step Guide: Attaching Your LLM API Key",
+    apiGuideLead: "You can easily power the AI Code Inspector with your own Google Gemini, OpenAI, or local Ollama model.",
+    apiSteps: [
+      {
+        step: "01",
+        title: "Get a Free Google Gemini API Key",
+        desc: "Go to Google AI Studio (https://aistudio.google.com/app/apikey), sign in with Google, and click 'Create API Key'. Gemini 2.5 Flash is fast, powerful, and includes generous free quotas.",
+      },
+      {
+        step: "02",
+        title: "Open the .env Configuration File",
+        desc: "In your project root directory, open the .env file with any text editor (VS Code, Notepad, Vim).",
+      },
+      {
+        step: "03",
+        title: "Set LLM Environment Variables",
+        desc: "Fill in the LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL fields:",
+        code: `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai\nLLM_API_KEY=AIzaSyYourGeneratedSecretKeyHere\nLLM_MODEL=gemini-2.5-flash\nLLM_TIMEOUT_SECONDS=45`,
+      },
+      {
+        step: "04",
+        title: "Restart the Backend Service",
+        desc: "Restart your Docker stack so the backend loads your new credentials:",
+        code: `# On Linux / macOS:\ndocker compose up -d backend\n\n# Or on Windows:\n.\\deploy.ps1`,
+      },
+      {
+        step: "05",
+        title: "Verify Configuration Status",
+        desc: "Open http://localhost:8000/api/auth/status in your browser. Verify that 'llm_configured' is true and 'message' is 'ok'. The AI Inspector is now fully active!",
+      },
+    ],
+    askTitle: "Best Practices for Deep Code Inquiries",
+    askLead: "Specific, targeted questions yield the most precise citing evidence.",
     askTips: [
-      "Name a file, function or feature instead of asking in general terms.",
-      "Ask one thing at a time. Follow-up questions keep the recent context.",
-      "Open the citations to confirm the answer before you rely on it.",
+      "Target specific symbols: Name the class, method, or file (e.g., 'In auth.py, how is create_access_token signed?').",
+      "Ask for structural relationships: Inquire about data flows between specific packages.",
+      "Always inspect cited lines: Click [E1], [E2] to review the highlighted code before acting.",
     ],
-    promptsLabel: "Try asking",
+    promptsLabel: "Recommended Inspection Queries",
     prompts: [
-      "What is the overall architecture?",
-      "Where is the application entrypoint?",
-      "How is authentication handled?",
-      "Which files import config.py?",
+      "Where is the HTTP request lifecycle handled?",
+      "Which files import and instantiate DatabaseSession?",
+      "Audit potential SQL injection vectors in repository queries.",
+      "List all classes that inherit from BaseParser.",
     ],
-    readTitle: "Reading an answer",
+    readTitle: "Interpreting Inspection Evidence",
     read: [
-      ["Grounded Evidence", "The answer is backed by retrieved code. Each source shows its file, lines and commit."],
-      ["Insufficient Evidence", "Nothing in the index matched well enough. Rephrase with a file or function name, or accept that the repository may not contain the answer."],
+      ["GROUNDED EVIDENCE VERIFIED", "The conclusion is directly proven by retrieved code chunks. Inspect file paths, line ranges, and relevance scores."],
+      ["INSUFFICIENT EVIDENCE", "No code chunk passed the evidence threshold. The AI deliberately halts rather than hallucinating false code."],
     ],
-    faqTitle: "Frequently asked questions",
+    faqTitle: "Frequently Asked Questions",
     faq: [
-      ["Can I analyze a private repository?", "Not yet. This version works only with public GitHub repositories, because the worker clones them without any credentials. Private access through a GitHub App is planned. Until then, you can fork or mirror the code into a public repository you are allowed to share, but never publish code that is confidential."],
-      ["Which languages are supported?", "Python is parsed with a full AST, so functions, classes and imports are extracted accurately. JavaScript and TypeScript are supported at a basic level: you get symbols and the main import relations. Other languages are still indexed as plain text, so you can search and ask about them, but they have fewer symbols and no dependency graph."],
-      ["Why does the answer say there is insufficient evidence?", "The system answers only when the retrieved code actually supports the answer, and it would rather say so than guess. This usually means the question is too general, the topic lives in a file that was skipped, or the repository simply does not contain it. Name a file, function or feature, check that the file exists in the Source Code tab, and ask again."],
-      ["How do I read and trust a citation?", "Each citation combines a file path, a short commit SHA and a line range such as #L12-L18. Select it to highlight those lines in the Source Code tab, or open the GitHub link beside it to read the same revision online. Always open at least one citation before you rely on an answer, because the answer is only as good as the lines it points to."],
-      ["Why are some files missing?", "Some files are skipped on purpose to keep the analysis safe and fast: binaries, build output, vendored or generated folders, secrets and any file larger than 256 KB. A repository is also limited to 5,000 files. If an important file is missing, check whether it falls under one of these rules."],
-      ["Is every finding in Technical Debt a real problem?", "No. Findings come from fixed rules, such as very large files or functions, heavy coupling and circular dependencies, so some are false positives. Treat each one as a lead: open its evidence, read the code and decide with your team whether it needs action. The tool suggests, it does not judge."],
-      ["Why do I not see my repository in the Library?", "The Library lists repositories analyzed while you were signed in. If you analyzed one before signing in, sign in and analyze it again. If it is already indexed at the same commit, the saved results are reused and it appears right away."],
-      ["The analysis is slow or failed. What should I do?", "Large repositories take longer, and the page shows the current phase and progress. If a job fails or seems stuck, select Re-analyze. If it fails again, scroll to the Support section at the bottom of the home page and send us the repository URL, the commit SHA if shown, and the exact message you saw."],
-      ["Does Archaeologist run or change my code?", "No. The repository is cloned and read only. Its code is parsed as text and is never executed or modified, and nothing is written back to GitHub."],
+      ["Does Archaeologist run or execute my repository code?", "Never. The repository is cloned read-only. Code is parsed solely as static text and AST tokens in an isolated container. No user code is ever executed or compiled."],
+      ["Can I connect private repositories?", "Private repository ingestion via GitHub App integration is built into the architecture. In production, configure GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY to grant fine-grained read-only access."],
+      ["How does the AI prevent hallucinating incorrect methods?", "Every query triggers cosine similarity retrieval against chunked AST tokens. If the top-scoring chunks fall below the minimum threshold (score < 0.08), the synthesis returns 'Insufficient Evidence' and refuses to guess."],
+      ["What is the difference between this and ChatGPT / Copilot?", "Standard chat tools generate code from probabilistic text prediction without ground-truth verification. Archaeologist acts as a forensic archaeologist: it indexes the AST graph, proves every claim with static code line numbers, and maps historical causal evolution."],
     ],
-    support: "Need more help? Go to Support",
+    support: "Have more questions? Contact Technical Support",
   },
   vi: {
-    intro: "Từ một đường dẫn GitHub đến đúng dòng mã đứng sau mỗi kết quả, chỉ trong bốn bước.",
-    stepsTitle: "Phân tích kho mã đầu tiên",
+    intro: "Hướng dẫn kỹ thuật chi tiết từng bước để soi mã nguồn chuyên sâu, thẩm tra bằng chứng và cấu hình API AI.",
+    stepsTitle: "Quy trình Phân tích 4 Bước Hoàn chỉnh",
     steps: [
-      ["Chọn kho mã", "Ở Trang chủ, dán đường dẫn kho GitHub công khai, ví dụ https://github.com/pallets/click, hoặc chọn một ví dụ. Hãy đăng nhập trước nếu muốn lưu kết quả vào Thư viện."],
-      ["Bắt đầu phân tích", "Nhấn Phân tích. Trang kết quả hiển thị từng giai đoạn khi kho được tải, phân tích và lập chỉ mục tại một commit cụ thể."],
-      ["Đọc kết quả", "Chuyển giữa các thẻ để đọc mã, xem lịch sử, lần theo phụ thuộc và xem các phát hiện."],
-      ["Kiểm tra câu trả lời", "Mở nút trò chuyện và đặt câu hỏi. Chọn trích dẫn để tô sáng đúng dòng mã trong trình duyệt tệp, hoặc mở liên kết GitHub bên cạnh."],
+      ["Bước 1: Nạp kho mã GitHub", "Dán đường dẫn kho GitHub công khai (ví dụ: https://github.com/pallets/click). Hãy đăng nhập bằng Google, GitHub hoặc Magic Link để tự động lưu kho và các snapshot bất biến vào thư viện cá nhân."],
+      ["Bước 2: Bóc tách AST & Lập chỉ mục", "Bộ xử lý nền (Worker) tải kho an toàn, chốt mã commit SHA, bóc tách cây cú pháp trừu tượng AST (hàm, lớp, module import), dựng đồ thị phụ thuộc và phân mảnh code thành các chunk ngữ nghĩa."],
+      ["Bước 3: Khởi chạy AI Soi Code Chuyên Sâu", "Chọn tab 'Hỏi đáp AI' (AI Code Inspector) hoặc chọn 1 trong 5 chế độ giám định tức thì: Giải phẫu Kiến trúc, Soi Lỗ hổng Bảo mật, Rủi ro khi Sửa đổi, Nợ kỹ thuật, hoặc Lịch sử Tiến hóa."],
+      ["Bước 4: Thẩm tra Bằng chứng Đối chiếu", "Nhấp vào bất kỳ huy hiệu bằng chứng [E1], [E2] để nhảy thẳng vào trình đọc mã nguồn tại đúng khoảng dòng được highlight, hoặc mở trang mã nguồn gốc trên GitHub."],
     ],
-    action: "Phân tích một kho mã",
-    beforeTitle: "Trước khi bắt đầu",
+    action: "Phân tích một Kho mã Ngay",
+    beforeTitle: "Danh sách Kiểm tra Trước khi Chạy",
     before: [
-      ["Bạn cần", "Đường dẫn kho GitHub công khai có dạng https://github.com/owner/repo."],
-      ["Đăng nhập", "Không bắt buộc. Đăng nhập để mở lại các kho đã phân tích trong Thư viện."],
-      ["Tiến độ", "Tác vụ đi qua các bước: chờ, tải kho, đọc tệp, phân tích mã, lập chỉ mục, đọc lịch sử, thu thập Pull Request và kiểm tra nợ kỹ thuật. Kho càng lớn càng lâu."],
+      ["Đường dẫn kho mã", "Phải là kho GitHub công khai hợp lệ có dạng https://github.com/owner/repo."],
+      ["Xác thực tài khoản", "Khuyên dùng. Đăng nhập giúp kích hoạt Thư viện cá nhân và quản lý phiên làm việc đa thiết bị."],
+      ["Phạm vi phân tích cú pháp", "Python được bóc tách AST toàn diện; JavaScript/TypeScript trích xuất symbol module; ngôn ngữ khác lập chỉ mục văn bản."],
+      ["Ranh giới an toàn tuyệt đối", "Mã nguồn được phân tích dưới dạng văn bản tĩnh. Tuyệt đối không có lệnh nào trong repo người dùng được phép thực thi."],
     ],
-    areasTitle: "Làm quen với trang kết quả",
-    areasLead: "Mỗi thẻ trả lời một câu hỏi khác nhau về cùng một commit.",
+    areasTitle: "7 Tab Phân tích Chuyên sâu",
+    areasLead: "Mỗi tab giải quyết một góc nhìn chuyên biệt về cùng một commit snapshot bất biến.",
     areas: [
-      { icon: "overview", title: "Tổng quan", body: "Số lượng tệp, hàm/lớp, phụ thuộc, đoạn đã lập chỉ mục và Pull Request, cùng nhánh và mã commit đã phân tích." },
-      { icon: "file", title: "Mã nguồn", body: "Lọc tệp theo đường dẫn, chọn một tệp và đọc kèm số dòng. Hãy bắt đầu từ đây để kiểm tra một trích dẫn trỏ tới đâu." },
-      { icon: "clock", title: "Lịch sử", body: "Các commit gần nhất của kho, kèm tác giả và ngày. Dùng để biết một phần mã đã thay đổi khi nào và vì sao." },
-      { icon: "graph", title: "Phụ thuộc", body: "Nhập đường dẫn một tệp rồi bấm kiểm tra ảnh hưởng. Danh sách gồm các tệp phụ thuộc vào nó, tối đa hai bước, cùng các import nội bộ đã xác định." },
-      { icon: "audit", title: "Nợ kỹ thuật", body: "Phát hiện tệp và hàm quá lớn, phụ thuộc quá nhiều, vòng phụ thuộc. Mỗi mục kèm bằng chứng để bạn tự kiểm chứng." },
-      { icon: "branch", title: "Pull Requests", body: "Thông tin Pull Request lấy từ GitHub, gồm trạng thái và ngày tháng, để nối thay đổi với thảo luận phía sau." },
+      { icon: "overview", title: "Tổng quan (Overview)", body: "Thống kê tổng số file, hàm/lớp, phụ thuộc, chunk, Pull Request và biểu đồ xu hướng." },
+      { icon: "file", title: "Mã nguồn & Cây tệp (Files)", body: "Cây thư mục tương tác, đọc mã kèm số dòng và tô sáng các dòng bằng chứng." },
+      { icon: "sparkles", title: "AI Soi Code (Code Inspector)", body: "Giám định kiến trúc, mổ xẻ hàm/class, thẩm tra bảo mật và đối chiếu bằng chứng tĩnh." },
+      { icon: "clock", title: "Dòng thời gian (Timeline)", body: "Dòng thời gian commit trực quan hóa độ lớn thay đổi (add/del) theo từng tác giả." },
+      { icon: "graph", title: "Đồ thị Phụ thuộc (Graph)", body: "Biểu đồ phụ thuộc tương tác SVG và phân tích bán kính ảnh hưởng lan truyền đa tầng." },
+      { icon: "audit", title: "Nợ kỹ thuật (Debt)", body: "Tự động phát hiện các God file, God function và vòng lặp import tròn cần refactor." },
+      { icon: "branch", title: "Pull Requests", body: "Kết nối lịch sử commit với các cuộc thảo luận và thông tin sáp nhập PR trên GitHub." },
     ],
-    askTitle: "Đặt câu hỏi hiệu quả",
-    askLead: "Khung trò chuyện trả lời dựa trên mã đã lập chỉ mục của phiên bản này, nên câu hỏi càng cụ thể càng tốt.",
+    inspectorTitle: "AI Soi Code Chuyên Sâu vs Chatbot Thông Thường",
+    inspectorLead: "Archaeologist là công cụ giám định và khảo cổ mã nguồn có bằng chứng, không phải chatbot trò chuyện vu vơ.",
+    inspectorModes: [
+      {
+        title: "🏛️ Giải phẫu Kiến trúc Hệ thống",
+        desc: "Bóc tách cấu trúc phân lớp, luồng dữ liệu chính và cách các module kết nối mà không suy diễn.",
+        sample: "Phân tích kiến trúc luồng dữ liệu chính và chỉ ra module nào quản lý lưu trữ database.",
+      },
+      {
+        title: "🛡️ Giám định An ninh & Lỗ hổng",
+        desc: "Soi luồng xác thực, kiểm tra token, xác thực đầu vào và phát hiện rò rỉ secret tiềm ẩn.",
+        sample: "Kiểm tra cơ chế xác thực người dùng và vị trí các dữ liệu bên ngoài được kiểm tra an toàn.",
+      },
+      {
+        title: "⚡ Bán kính Tác động & Rủi ro khi Sửa đổi",
+        desc: "Chỉ ra các module và hàm có bán kính ảnh hưởng (Blast Radius) lớn nhất khi bị can thiệp.",
+        sample: "Những tệp nào có nguy cơ bị lỗi nếu chúng ta sửa đổi hàm khởi tạo trong core.py?",
+      },
+      {
+        title: "🧹 Điểm nghẽn Nợ kỹ thuật",
+        desc: "Phát hiện các file nguyên khối (>1000 dòng), độ phức tạp Cyclomatic cao và module phụ thuộc quá chặt.",
+        sample: "Chỉ ra 3 tệp có độ phụ thuộc cao nhất cần được chia nhỏ và tái cấu trúc.",
+      },
+      {
+        title: "📜 Đào bới Nguyên nhân & Lịch sử",
+        desc: "Truy vết lý do tại sao đoạn mã được viết như hiện tại dựa trên các commit và PR trong quá khứ.",
+        sample: "Vì sao bộ phân tích cú pháp streaming được viết lại trong commit v2.1?",
+      },
+    ],
+    apiGuideTitle: "Hướng Dẫn Từng Bước: Tự Gắn API Key AI Cho Hệ Thống",
+    apiGuideLead: "Bạn có thể dễ dàng gắn API Key của Google Gemini, OpenAI hoặc mô hình Ollama chạy trên máy.",
+    apiSteps: [
+      {
+        step: "01",
+        title: "Lấy API Key Miễn phí từ Google Gemini",
+        desc: "Truy cập Google AI Studio (https://aistudio.google.com/app/apikey), đăng nhập bằng tài khoản Google và bấm 'Create API Key'. Mô hình Gemini 2.5 Flash vừa cực kỳ thông minh, tốc độ cao lại có hạn mức miễn phí rộng rãi.",
+      },
+      {
+        step: "02",
+        title: "Mở Tệp Cấu hình .env",
+        desc: "Tại thư mục gốc dự án, mở tệp .env bằng bất kỳ trình soạn thảo nào (VS Code, Notepad, v.v.).",
+      },
+      {
+        step: "03",
+        title: "Điền Cấu hình Biến Môi trường LLM",
+        desc: "Cập nhật 4 dòng thông số sau với API key của bạn:",
+        code: `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai\nLLM_API_KEY=AIzaSyKhoaBimatCuaBanOday\nLLM_MODEL=gemini-2.5-flash\nLLM_TIMEOUT_SECONDS=45`,
+      },
+      {
+        step: "04",
+        title: "Khởi động lại Dịch vụ Backend",
+        desc: "Chạy lệnh để backend nạp cấu hình mới:",
+        code: `# Trên Linux / VPS:\ndocker compose up -d backend\n\n# Hoặc trên Windows PowerShell:\n.\\deploy.ps1`,
+      },
+      {
+        step: "05",
+        title: "Kiểm tra Trạng thái Hoạt động",
+        desc: "Truy cập đường dẫn http://localhost:8000/api/auth/status trên trình duyệt. Kiểm tra trường 'llm_configured' chuyển thành true. Hệ thống AI Soi Code đã sẵn sàng phục vụ 100%!",
+      },
+    ],
+    askTitle: "Kinh nghiệm Đặt Câu hỏi Soi Code Hiệu quả",
+    askLead: "Câu hỏi càng có trọng tâm kỹ thuật thì bằng chứng đối chiếu trả về càng chính xác.",
     askTips: [
-      "Nêu tên tệp, hàm hoặc tính năng thay vì hỏi chung chung.",
-      "Mỗi lần hỏi một ý. Câu hỏi tiếp theo vẫn giữ ngữ cảnh gần nhất.",
-      "Mở trích dẫn để kiểm tra trước khi dựa vào câu trả lời.",
+      "Nêu cụ thể tên hàm, class hoặc tệp: Ví dụ: 'Trong auth.py, token JWT được ký bằng thuật toán gì?'.",
+      "Hỏi về quan hệ kiến trúc: 'Module retrieval.py kết nối với database qua các truy vấn nào?'.",
+      "Luôn thẩm tra bằng chứng: Nhấp vào [E1], [E2] để kiểm tra số dòng code thực tế trước khi tin cậy.",
     ],
-    promptsLabel: "Thử hỏi",
+    promptsLabel: "Các Câu hỏi Mẫu Nên Thử",
     prompts: [
-      "Kiến trúc tổng thể và module chính?",
-      "Điểm bắt đầu của ứng dụng ở đâu?",
-      "Xử lý xác thực người dùng thế nào?",
-      "Những tệp nào import config.py?",
+      "Vòng đời xử lý một HTTP Request được định tuyến ở đâu?",
+      "Những file nào import và khởi tạo DatabaseSession?",
+      "Soi các lỗ hổng SQL Injection tiềm ẩn trong các câu truy vấn.",
+      "Liệt kê tất cả các class kế thừa từ BaseParser.",
     ],
-    readTitle: "Cách đọc câu trả lời",
+    readTitle: "Cách Đọc Kết quả Giám định",
     read: [
-      ["Đã đối chiếu mã nguồn", "Câu trả lời dựa trên đoạn mã đã truy xuất. Mỗi nguồn hiển thị tệp, dòng và commit."],
-      ["Thiếu bằng chứng tin cậy", "Không có nội dung nào trong chỉ mục khớp đủ tốt. Hãy hỏi lại kèm tên tệp hoặc hàm, hoặc chấp nhận rằng kho có thể không chứa câu trả lời."],
+      ["ĐÃ XÁC THỰC BẰNG CHỨNG (GROUNDED)", "Kết luận được chứng minh trực tiếp từ các đoạn mã nguồn AST đã lập chỉ mục. Kiểm tra đường dẫn tệp, dòng mã và điểm số liên quan."],
+      ["CHƯA ĐỦ BẰNG CHỨNG XÁC THỰC", "Không có đoạn mã nào vượt qua ngưỡng tin cậy. Hệ thống chủ động từ chối kết luận để tránh ảo giác sai lệch."],
     ],
-    faqTitle: "Câu hỏi thường gặp",
+    faqTitle: "Câu Hỏi Thường Gặp",
     faq: [
-      ["Tôi có phân tích được kho riêng tư không?", "Chưa. Phiên bản này chỉ làm việc với kho GitHub công khai, vì bộ xử lý tải kho mà không dùng thông tin đăng nhập nào. Truy cập kho riêng tư qua GitHub App nằm trong định hướng mở rộng. Trong lúc chờ, bạn có thể fork hoặc sao chép mã sang một kho công khai mà bạn được phép chia sẻ, nhưng tuyệt đối không công khai mã nguồn mang tính bảo mật."],
-      ["Hỗ trợ những ngôn ngữ nào?", "Python được phân tích bằng AST đầy đủ nên hàm, lớp và import được trích xuất chính xác. JavaScript và TypeScript ở mức cơ bản: có danh sách hàm/lớp và các quan hệ import chính. Ngôn ngữ khác vẫn được lập chỉ mục dạng văn bản nên bạn có thể tìm kiếm và hỏi đáp, nhưng có ít hàm hơn và không có đồ thị phụ thuộc."],
-      ["Vì sao câu trả lời báo thiếu bằng chứng?", "Hệ thống chỉ trả lời khi đoạn mã truy xuất được thật sự ủng hộ câu trả lời, và thà báo thiếu còn hơn đoán bừa. Thường là do câu hỏi quá chung chung, nội dung nằm trong tệp đã bị bỏ qua, hoặc kho mã vốn không chứa nó. Hãy nêu tên tệp, hàm hoặc tính năng, kiểm tra tệp có trong thẻ Mã nguồn không rồi hỏi lại."],
-      ["Làm sao đọc và kiểm chứng một trích dẫn?", "Mỗi trích dẫn gồm đường dẫn tệp, mã commit rút gọn và phạm vi dòng như #L12-L18. Chọn trích dẫn để tô sáng các dòng đó trong thẻ Mã nguồn, hoặc mở liên kết GitHub bên cạnh để đọc đúng phiên bản trên mạng. Hãy mở ít nhất một trích dẫn trước khi tin vào câu trả lời, vì câu trả lời chỉ đáng tin bằng chính những dòng mã mà nó chỉ tới."],
-      ["Vì sao một số tệp không xuất hiện?", "Một số tệp bị bỏ qua có chủ đích để việc phân tích an toàn và nhanh: tệp nhị phân, thư mục build, mã vendor hoặc mã sinh tự động, tệp bí mật và mọi tệp lớn hơn 256 KB. Mỗi kho cũng giới hạn 5.000 tệp. Nếu thiếu một tệp quan trọng, hãy kiểm tra xem nó có thuộc các quy tắc trên không."],
-      ["Mọi phát hiện trong Nợ kỹ thuật đều là lỗi thật?", "Không. Phát hiện dựa trên quy tắc cố định như tệp hoặc hàm quá lớn, phụ thuộc quá nhiều, vòng phụ thuộc, nên một số có thể là báo nhầm. Hãy xem mỗi mục là một manh mối: mở bằng chứng kèm theo, đọc mã rồi cùng nhóm quyết định có cần xử lý hay không. Công cụ chỉ gợi ý, không phán xét."],
-      ["Vì sao tôi không thấy kho của mình trong Thư viện?", "Thư viện chỉ liệt kê các kho được phân tích khi bạn đã đăng nhập. Nếu bạn phân tích trước khi đăng nhập, hãy đăng nhập rồi phân tích lại. Nếu commit đó đã được lập chỉ mục, kết quả đã lưu sẽ được dùng lại và kho xuất hiện ngay."],
-      ["Phân tích chậm hoặc bị lỗi thì làm gì?", "Kho lớn cần nhiều thời gian hơn, trang kết quả hiển thị giai đoạn và tiến độ hiện tại. Nếu tác vụ lỗi hoặc có vẻ bị treo, hãy nhấn Phân tích lại. Nếu vẫn lỗi, kéo xuống phần Hỗ trợ ở cuối Trang chủ và gửi cho nhóm đường dẫn kho, mã commit nếu có và nguyên văn thông báo bạn thấy."],
-      ["Archaeologist có chạy hay sửa mã của tôi không?", "Không. Kho chỉ được tải về và đọc. Mã được phân tích dưới dạng văn bản, không bao giờ bị chạy hay bị sửa, và không có gì được ghi ngược lại lên GitHub."],
+      ["Hệ thống có chạy mã nguồn của tôi không?", "Tuyệt đối không. Kho mã được clone ở chế độ chỉ đọc (read-only). Mã chỉ được phân tích cú pháp tĩnh dạng văn bản và AST. Không có bất kỳ lệnh nào trong repository người dùng được phép thực thi."],
+      ["Tôi có phân tích được kho GitHub riêng tư (Private) không?", "Kiến trúc hệ thống đã hỗ trợ sẵn việc tích hợp GitHub App. Khi triển khai nội bộ doanh nghiệp, cấu hình GITHUB_APP_ID và GITHUB_APP_PRIVATE_KEY để cấp quyền đọc an toàn."],
+      ["Làm sao AI không nói bừa hoặc bị ảo giác (hallucination)?", "Mọi câu hỏi đều kích hoạt truy xuất Cosine Similarity đối chiếu với các chunk mã nguồn AST. Nếu điểm số không đạt ngưỡng (score < 0.08), hệ thống bắt buộc trả về 'Chưa đủ bằng chứng'."],
+      ["Điểm khác biệt giữa Archaeologist và ChatGPT / Copilot là gì?", "Các công cụ chat thông thường sinh văn bản dựa trên xác suất từ ngữ mà không kiểm chứng sự thật. Archaeologist đóng vai trò giám định khảo cổ: dựng đồ thị AST, chứng minh mọi nhận định bằng số dòng code thực tế `#L...-L...` và truy vết lịch sử tiến hóa commit."],
     ],
-    support: "Cần thêm trợ giúp? Xem phần Hỗ trợ",
+    support: "Cần thêm trợ giúp? Xem kênh Hỗ trợ Kỹ thuật",
   },
 };
 
 export default function GuidePage() {
   const { locale, t } = useI18n();
   const copy = content[locale];
-  return <article className="wrap resource-page">
-    <header className="resource-head"><h1>{t.guideTitle}</h1><p>{copy.intro}</p></header>
 
-    <div className="resource-columns">
-      <section className="guide-instructions">
-        <h2>{copy.stepsTitle}</h2>
-        <ol className="guide-steps">{copy.steps.map(([title, body]) =>
-          <li key={title}><h3>{title}</h3><p>{body}</p></li>
-        )}</ol>
-        <Link className="primary resource-link" href="/#analyze">{copy.action}<Icon name="arrow" size={16}/></Link>
-      </section>
-      <aside className="resource-aside">
-        <Icon name="compass" size={24}/>
-        <h2>{copy.beforeTitle}</h2>
-        <dl>{copy.before.map(([title, body]) => <div key={title}><dt>{title}</dt><dd>{body}</dd></div>)}</dl>
-      </aside>
-    </div>
+  return (
+    <article className="wrap resource-page guide-page">
+      <header className="resource-head">
+        <span className="page-tag">
+          <Icon name="sparkles" size={14} />
+          {locale === "vi" ? "SỔ TAY KỸ THUẬT" : "TECHNICAL HANDBOOK"}
+        </span>
+        <h1>{t.guideTitle}</h1>
+        <p>{copy.intro}</p>
+      </header>
 
-    <section className="guide-example">
-      <Icon name="repository" size={24}/><div><h2>{locale==="vi" ? "Thử lần theo một tệp" : "Trace a file in Click"}</h2>
-      <p>{locale==="vi" ? "Phân tích " : "Analyze "}<code>pallets/click</code>{locale==="vi" ? ", mở bản đồ phụ thuộc rồi tìm " : ", open the dependency map and locate "}<code>src/click/core.py</code>{locale==="vi" ? ". Chọn tệp để xem các tệp phụ thuộc vào nó. Mở chat, hỏi về lớp Command rồi chọn trích dẫn để đọc mã ở đúng commit." : ". Select it to inspect its dependents. Ask the chat about the Command class, then open a citation to read its source at the indexed commit."}</p></div>
-    </section>
+      {/* 4 Steps Section */}
+      <div className="resource-columns">
+        <section className="guide-instructions">
+          <h2>{copy.stepsTitle}</h2>
+          <ol className="guide-steps">
+            {copy.steps.map(([title, body]) => (
+              <li key={title}>
+                <h3>{title}</h3>
+                <p>{body}</p>
+              </li>
+            ))}
+          </ol>
+          <Link className="primary resource-link" href="/#analyze">
+            {copy.action}
+            <Icon name="arrow" size={16} />
+          </Link>
+        </section>
 
-    <section className="rs-section" aria-labelledby="guide-areas">
-      <h2 id="guide-areas">{copy.areasTitle}</h2>
-      <p className="rs-lead">{copy.areasLead}</p>
-      <div className="card-grid">
-        {copy.areas.map(({ icon, title, body }) => (
-          <article key={title} className="info-card">
-            <Icon name={icon} size={20}/>
-            <h3>{title}</h3>
-            <p>{body}</p>
-          </article>
-        ))}
+        <aside className="resource-aside">
+          <Icon name="compass" size={24} />
+          <h2>{copy.beforeTitle}</h2>
+          <dl>
+            {copy.before.map(([title, body]) => (
+              <div key={title}>
+                <dt>{title}</dt>
+                <dd>{body}</dd>
+              </div>
+            ))}
+          </dl>
+        </aside>
       </div>
-    </section>
 
-    <div className="resource-columns even rs-section">
-      <section className="guide-instructions" aria-labelledby="guide-ask">
-        <h2 id="guide-ask">{copy.askTitle}</h2>
-        <p className="rs-lead">{copy.askLead}</p>
-        <ul className="tick-list">
-          {copy.askTips.map(tip => <li key={tip}><Icon name="check" size={16}/><span>{tip}</span></li>)}
-        </ul>
-        <p className="chip-label">{copy.promptsLabel}</p>
-        <ul className="prompt-list">{copy.prompts.map(p => <li key={p}>{p}</li>)}</ul>
+      {/* 7 Panels Tour */}
+      <section className="rs-section" aria-labelledby="guide-areas">
+        <h2 id="guide-areas">{copy.areasTitle}</h2>
+        <p className="rs-lead">{copy.areasLead}</p>
+        <div className="card-grid">
+          {copy.areas.map(({ icon, title, body }) => (
+            <article key={title} className="info-card">
+              <Icon name={icon} size={22} />
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
       </section>
-      <aside className="resource-aside">
-        <Icon name="quote" size={24}/>
-        <h2>{copy.readTitle}</h2>
-        <dl>{copy.read.map(([title, body], i) =>
-          <div key={title}><dt><span className={"dot " + (i === 0 ? "ok" : "warn")}/>{title}</dt><dd>{body}</dd></div>
-        )}</dl>
-      </aside>
-    </div>
 
-    <section className="rs-section" aria-labelledby="guide-faq">
-      <h2 id="guide-faq">{copy.faqTitle}</h2>
-      <div className="faq">
-        {copy.faq.map(([question, answer]) => (
-          <details key={question}><summary>{question}</summary><p>{answer}</p></details>
-        ))}
+      {/* AI Inspector vs Chatbot Section */}
+      <section className="rs-section inspector-guide-section">
+        <div className="inspector-guide-header">
+          <span className="inspector-badge">
+            <Icon name="sparkles" size={14} />
+            {locale === "vi" ? "BẢN CHẤT CÔNG NGHỆ" : "CORE TECHNOLOGY"}
+          </span>
+          <h2>{copy.inspectorTitle}</h2>
+          <p className="rs-lead">{copy.inspectorLead}</p>
+        </div>
+
+        <div className="card-grid cols-2">
+          {copy.inspectorModes.map((m) => (
+            <article key={m.title} className="info-card inspector-mode-card">
+              <h3>{m.title}</h3>
+              <p>{m.desc}</p>
+              <div className="sample-query-box">
+                <span className="sample-label">
+                  <Icon name="quote" size={12} />
+                  {locale === "vi" ? "Mẫu câu lệnh soi code:" : "Sample Inspection Query:"}
+                </span>
+                <code>{m.sample}</code>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* Step-by-Step API Key Attachment Guide */}
+      <section className="rs-section api-guide-section">
+        <div className="api-guide-header">
+          <span className="inspector-badge">
+            <Icon name="key" size={14} />
+            {locale === "vi" ? "HƯỚNG DẪN CẤU HÌNH API" : "API CONFIGURATION"}
+          </span>
+          <h2>{copy.apiGuideTitle}</h2>
+          <p className="rs-lead">{copy.apiGuideLead}</p>
+        </div>
+
+        <div className="api-steps-flow">
+          {copy.apiSteps.map((s) => (
+            <div key={s.step} className="api-step-card">
+              <div className="api-step-num">{s.step}</div>
+              <div className="api-step-body">
+                <h3>{s.title}</h3>
+                <p>{s.desc}</p>
+                {s.code && (
+                  <pre className="code-block">
+                    <code>{s.code}</code>
+                  </pre>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Tips and Reading Evidence */}
+      <div className="resource-columns even rs-section">
+        <section className="guide-instructions" aria-labelledby="guide-ask">
+          <h2 id="guide-ask">{copy.askTitle}</h2>
+          <p className="rs-lead">{copy.askLead}</p>
+          <ul className="tick-list">
+            {copy.askTips.map((tip) => (
+              <li key={tip}>
+                <Icon name="check" size={16} />
+                <span>{tip}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="chip-label">{copy.promptsLabel}</p>
+          <ul className="prompt-list">
+            {copy.prompts.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </section>
+
+        <aside className="resource-aside">
+          <Icon name="quote" size={24} />
+          <h2>{copy.readTitle}</h2>
+          <dl>
+            {copy.read.map(([title, body], i) => (
+              <div key={title}>
+                <dt>
+                  <span className={"dot " + (i === 0 ? "ok" : "warn")} />
+                  {title}
+                </dt>
+                <dd>{body}</dd>
+              </div>
+            ))}
+          </dl>
+        </aside>
       </div>
-      <Link className="text-action resource-link" href="/#support">{copy.support}<Icon name="arrow" size={15}/></Link>
-    </section>
-  </article>;
+
+      {/* FAQ */}
+      <section className="rs-section" aria-labelledby="guide-faq">
+        <h2 id="guide-faq">{copy.faqTitle}</h2>
+        <div className="faq">
+          {copy.faq.map(([question, answer]) => (
+            <details key={question}>
+              <summary>{question}</summary>
+              <p>{answer}</p>
+            </details>
+          ))}
+        </div>
+        <Link className="text-action resource-link" href="/#support">
+          {copy.support}
+          <Icon name="arrow" size={15} />
+        </Link>
+      </section>
+    </article>
+  );
 }

@@ -11,6 +11,11 @@ import StrataFigure from "../components/StrataFigure";
 
 function formatOAuthError(code: string, vi: boolean, origin: string): string {
   const cb = `${origin}/api/auth/oauth/google/callback`;
+  if (code === "google_invalid_client") {
+    return vi
+      ? `Lỗi Google OAuth (${code}): Client ID hoặc Client Secret trong file cấu hình .env chưa chính xác. Bạn có thể đăng nhập bằng GitHub hoặc nhập email trong mục Tài khoản phát triển bên dưới để truy cập ngay lập tức!`
+      : `Google OAuth error (${code}): Client ID or Client Secret in server .env is not configured or invalid. You can sign in with GitHub or use the Developer Account section below to access immediately!`;
+  }
   if (code === "access_denied") {
     return vi
       ? "Google từ chối truy cập (App đang ở chế độ Testing — hãy thêm email vào Test users hoặc Publish App trong Google Cloud Console)."

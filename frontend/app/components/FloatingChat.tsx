@@ -131,14 +131,16 @@ export default function FloatingChat({ repo, repos = [], signedIn = false, onSel
 
   const quickPrompts = isVi
     ? [
-        "Kiến trúc tổng thể và module chính?",
-        "Điểm bắt đầu của ứng dụng ở đâu?",
-        "Xử lý xác thực người dùng thế nào?",
+        "🏛️ Kiến trúc tổng thể và các module chính?",
+        "🛡️ Luồng xác thực và an ninh dữ liệu?",
+        "⚡ Những hàm có nguy cơ ảnh hưởng lớn khi sửa?",
+        "🧹 Phát hiện điểm nghẽn nợ kỹ thuật cần tối ưu?",
       ]
     : [
-        "What is the overall architecture?",
-        "Where is the application entrypoint?",
-        "How is authentication handled?",
+        "🏛️ What is the overall architecture and data flow?",
+        "🛡️ How are authentication and security handled?",
+        "⚡ Which modules have the largest blast radius?",
+        "🧹 What are the main technical debt hotspots?",
       ];
 
   return (
@@ -150,28 +152,25 @@ export default function FloatingChat({ repo, repos = [], signedIn = false, onSel
           className="floating-chat-trigger"
           ref={triggerRef}
           aria-haspopup="dialog"
-          aria-label={isVi ? "Mở hỏi đáp mã nguồn" : "Open codebase chat"}
-          title={isVi ? "Hỏi đáp mã nguồn" : "Ask about this codebase"}
+          aria-label={isVi ? "Mở công cụ soi mã nguồn AI" : "Open AI Code Inspector"}
+          title={isVi ? "AI Soi Mã Nguồn & Giám Định" : "AI Code Inspector"}
           onClick={() => onToggle(true)}
         >
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 3.5c-5.1 0-8.8 3.4-8.8 8 0 2 .7 3.8 2 5.1l-.8 4.1 4.3-1.8c1 .4 2.1.6 3.3.6 5 0 8.8-3.4 8.8-8s-3.8-8-8.8-8Z"
-              stroke="currentColor" strokeWidth="1.85" strokeLinejoin="round"/>
-            <g fill="currentColor">
-              <circle cx="8" cy="11.6" r="1.1"/><circle cx="12" cy="11.6" r="1.1"/><circle cx="16" cy="11.6" r="1.1"/>
-            </g>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
           </svg>
+          <span className="trigger-label">{isVi ? "Soi Code AI" : "AI Inspect"}</span>
         </button>
       )}
 
       {/* Floating Chat Box Window */}
       {isOpen && (
-        <div className="floating-chat-box" role="dialog" aria-modal="false" aria-label={isVi ? "Hỏi đáp mã nguồn" : "Codebase Q&A"}>
+        <div className="floating-chat-box" role="dialog" aria-modal="false" aria-label={isVi ? "AI Giám định mã nguồn" : "AI Code Inspector"}>
           {/* Header */}
           <div className="chat-box-header">
             <div className="chat-header-title">
               <span className="chat-status-dot" aria-hidden="true" />
-              <strong>{isVi ? "Hỏi đáp mã nguồn" : "Codebase Q&A"}</strong>
+              <strong>{isVi ? "AI Code Inspector" : "AI Code Inspector"}</strong>
               {shortSha && <span className="chat-sha-badge">SHA: {shortSha}</span>}
             </div>
             <div className="chat-header-actions">

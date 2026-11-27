@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [userLocale, setUserLocale] = useState("vi");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -35,6 +36,7 @@ export default function ProfilePage() {
         if (!current) return;
         setUser(profile);
         setName(profile.name || "");
+        setEmail(profile.email || "");
         setUserLocale(profile.preferred_locale || locale);
         setLoading(false);
       },
@@ -68,12 +70,13 @@ export default function ProfilePage() {
     try {
       const res = await api.updateProfile({
         name: name.trim(),
+        email: email.trim(),
         preferred_locale: userLocale,
       });
       if (userLocale !== locale) {
         setLocale(userLocale as Locale);
       }
-      setUser(prev => (prev ? { ...prev, name: res.name || name.trim(), preferred_locale: res.preferred_locale } : null));
+      setUser(prev => (prev ? { ...prev, name: res.name || name.trim(), email: res.email || email.trim(), preferred_locale: res.preferred_locale } : null));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
@@ -222,12 +225,24 @@ export default function ProfilePage() {
             <div className="form-group">
               <label htmlFor="user-email">{t.profileEmailLabel}</label>
               <div className="input-with-badge">
-                <input id="user-email" type="email" value={user?.email || ""} readOnly disabled className="input-readonly" />
+                <input
+                  id="user-email"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                />
                 <span className="badge-verified">
                   <Icon name="check" size={12} />
                   {vi ? "Đã xác thực" : "Verified"}
                 </span>
               </div>
+              <small className="form-tip muted" style={{ marginTop: 6, display: "block", fontSize: "12.5px" }}>
+                {vi
+                  ? "Địa chỉ email chính dùng để đăng nhập và định danh. Bạn có thể cập nhật email bất cứ lúc nào."
+                  : "Primary email address used for sign-in and identity. You can update it whenever needed."}
+              </small>
             </div>
 
             <div className="form-group">
