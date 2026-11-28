@@ -99,10 +99,30 @@ const content: Record<"en" | "vi", Copy> = {
     ],
     faqTitle: "Common questions",
     faq: [
-      ["Does the system execute my source code?", "No. The repository is processed through a read-only analysis flow and is inspected as code evidence rather than executed application logic."],
-      ["Why can results vary between repositories?", "Accuracy depends on how much relevant code was indexed, how clearly the repository is structured, and how well the question matches the available evidence."],
-      ["How should I judge an answer?", "Treat the answer as an evidence-supported analysis draft. Open the cited lines and confirm the conclusion with your own technical reading."],
-      ["Can this replace manual review?", "Not fully. Archaeologist reduces search time and surfaces evidence quickly, but code review, testing, and technical validation are still required."],
+      [
+        "Does the system execute my source code?",
+        "No. Your repository is cloned into an isolated read-only workspace and inspected purely via static analysis (AST parsing, dependency graph extraction, and text chunking). The worker never executes application code (no npm start, python main.py, or eval), and automatically skips sensitive files such as .env, *.pem, *.key, and credentials.json."
+      ],
+      [
+        "Why can results vary between repositories?",
+        "Analysis depth depends on three factors: (1) Language support — Python receives full AST symbol & call-graph parsing while JS/TS/Go/Java/Rust are indexed at module and chunk level; (2) Code structure — clear naming and modular files produce stronger dependency edges; (3) Whether an external LLM API key (Gemini/OpenAI) is configured in .env for deep synthesis."
+      ],
+      [
+        "How should I judge an answer from AI Code Inspector?",
+        "Always check the evidence status badge first ('Evidence grounded' vs 'Insufficient evidence'). Click the cited file paths and line ranges to jump straight into the Code Reader and verify the actual implementation lines before making architectural decisions."
+      ],
+      [
+        "Can this replace manual code review?",
+        "Not completely. Archaeologist acts as a codebase microscope and map — cutting onboarding and impact-lookup time by up to 80% — while human engineers remain essential for business-logic verification, runtime testing, and final approval."
+      ],
+      [
+        "What happens if a repository's default branch is empty?",
+        "If the default branch (e.g. main) contains no supported source files and no specific branch was requested, the parser worker automatically probes other remote branches (such as master, develop, dev, or integration/mvp) and indexes the first populated branch."
+      ],
+      [
+        "Does the Code Workshop modify my live GitHub repository?",
+        "No. Any edits or AI-suggested patches inside the Code Workshop only generate a local diff preview in your browser. The immutable snapshot and your remote GitHub repository are never altered."
+      ],
     ],
     support: "Need more help? Visit technical support",
   },
@@ -171,10 +191,30 @@ const content: Record<"en" | "vi", Copy> = {
     ],
     faqTitle: "Câu hỏi thường gặp",
     faq: [
-      ["Hệ thống có chạy mã nguồn của tôi không?", "Không. Repository được xử lý theo luồng phân tích chỉ đọc và được xem như nguồn bằng chứng mã nguồn, không phải logic ứng dụng để chạy trực tiếp."],
-      ["Vì sao kết quả có thể khác nhau giữa các repository?", "Độ chính xác phụ thuộc vào lượng mã liên quan đã được lập chỉ mục, độ rõ ràng của cấu trúc dự án và việc câu hỏi có bám đúng bằng chứng hiện có hay không."],
-      ["Nên đánh giá câu trả lời như thế nào?", "Hãy xem đó là một bản phân tích có dẫn chứng. Bạn nên mở các dòng mã được trích dẫn và tự đối chiếu trước khi kết luận."],
-      ["Hệ thống có thể thay thế hoàn toàn code review thủ công không?", "Chưa. Archaeologist giúp rút ngắn thời gian tìm kiếm và gom bằng chứng, nhưng code review, kiểm thử và xác nhận kỹ thuật vẫn rất cần thiết."],
+      [
+        "Hệ thống có chạy mã nguồn của tôi không?",
+        "Không bao giờ. Kho mã của bạn được clone vào vùng cô lập chỉ đọc (read-only sandbox) và chỉ được phân tích tĩnh (bóc tách cây cú pháp AST, đồ thị phụ thuộc và lập chỉ mục văn bản). Worker không chạy bất kỳ lệnh thực thi ứng dụng nào (không npm start, không python, không eval) và tự động bỏ qua các tệp nhạy cảm như .env, *.pem, *.key, credentials.json."
+      ],
+      [
+        "Vì sao kết quả có thể khác nhau giữa các repository?",
+        "Độ sâu phân tích phụ thuộc vào 3 yếu tố: (1) Ngôn ngữ lập trình — Python được phân tích AST sâu tới từng hàm/class, còn JS/TS/Go/Java/Rust được lập chỉ mục theo module và đoạn mã; (2) Độ rõ ràng của cấu trúc thư mục và tên hàm; (3) Việc bạn đã gắn LLM API Key (Gemini/OpenAI) trong .env để AI tổng hợp sâu hay đang chạy chế độ trích xuất tĩnh."
+      ],
+      [
+        "Nên đánh giá câu trả lời của AI Code Inspector như thế nào?",
+        "Hãy kiểm tra nhãn trạng thái bằng chứng trước ('Đã có bằng chứng' so với 'Chưa đủ bằng chứng'). Sau đó bấm trực tiếp vào đường dẫn tệp và số dòng được trích dẫn để mở trong Trình đọc mã nguồn và tự đối chiếu logic thực tế trước khi kết luận."
+      ],
+      [
+        "Hệ thống có thể thay thế hoàn toàn code review thủ công không?",
+        "Không thay thế hoàn toàn. Archaeologist đóng vai trò như bản đồ và kính hiển vi mã nguồn — giúp giảm tới 80% thời gian đọc hiểu dự án mới, khoanh vùng nợ kỹ thuật và đánh giá bán kính ảnh hưởng — nhưng việc kiểm thử nghiệp vụ, chạy test thực tế và phê duyệt cuối cùng vẫn cần kỹ sư con người."
+      ],
+      [
+        "Nếu nhánh mặc định (main) của kho mã trống thì hệ thống xử lý thế nào?",
+        "Nếu nhánh mặc định (ví dụ main) chưa có mã nguồn và bạn không khóa nhánh cụ thể, worker sẽ tự động dò tìm các nhánh khác trên GitHub (như master, develop, dev, integration/mvp...) để lấy đúng nhánh đang chứa code và hoàn tất phân tích."
+      ],
+      [
+        "Sửa code trong Xưởng sửa mã có làm thay đổi code thật trên GitHub không?",
+        "Không. Mọi thao tác sửa thủ công hoặc nhờ AI gợi ý sửa trong Xưởng sửa mã chỉ tạo bản xem trước thay đổi (Diff Preview) ngay trên trình duyệt để bạn tham khảo. Snapshot gốc và kho mã GitHub của bạn hoàn toàn không bị thay đổi."
+      ],
     ],
     support: "Cần thêm trợ giúp? Xem khu vực hỗ trợ kỹ thuật",
   },
@@ -321,8 +361,8 @@ export default function GuidePage() {
       <section className="rs-section" aria-labelledby="guide-faq">
         <h2 id="guide-faq">{copy.faqTitle}</h2>
         <div className="faq">
-          {copy.faq.map(([question, answer]) => (
-            <details key={question}>
+          {copy.faq.map(([question, answer], idx) => (
+            <details key={question} open={idx === 0}>
               <summary>{question}</summary>
               <p>{answer}</p>
             </details>
