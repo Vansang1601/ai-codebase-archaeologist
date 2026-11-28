@@ -60,6 +60,33 @@ def clone_repository(url: str, destination: Path, requested_ref: str | None = No
     return sha, branch
 
 
+def list_remote_branches(url: str) -> list[str]:
+    """Return remote branch names ordered by common priority."""
+    validate_canonical_github_url(url)
+    raw = _run(["git", "ls-remote", "--heads", "--", url], timeout=30)
+    branches: list[str] = []
+    for line in raw.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) == 2 and parts[1].startswith("refs/heads/"):
+            branches.append(parts[1][len("refs/heads/"):])
+    priority = {"main": 0, "master": 1, "develop": 2, "dev": 3, "integration/mvp": 4}
+    branches.sort(key=lambda b: (priority.get(b, 99), b))
+    return branches
+
+
+def fetch_and_checkout_branch(destination: Path, branch: str) -> tuple[str, str]:
+    """Fetch and detach-checkout a specific remote branch in an existing clone."""
+    settings = get_settings()
+    _run(
+        ["git", "fetch", "--depth", str(settings.max_history_commits), "origin", branch],
+        cwd=destination,
+        timeout=settings.max_clone_seconds,
+    )
+    _run(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=destination, timeout=30)
+    sha = _run(["git", "rev-parse", "HEAD"], cwd=destination, timeout=10).strip()
+    return sha, branch
+
+
 def read_history(repo_dir: Path, limit: int) -> list[CommitInfo]:
     # Git treats a shallow boundary as a root; its whole tree is not a real change.
     shallow_file = repo_dir / ".git" / "shallow"

@@ -13,11 +13,13 @@ SECRET_NAMES = {
 }
 SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".keystore"}
 TEXT_SUFFIXES = {
-    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rs", ".cs", ".php", ".rb",
-    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".xml", ".html", ".css",
-    ".sql", ".sh", ".ps1", ".dockerfile",
+    ".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts",
+    ".java", ".kt", ".go", ".rs", ".cs", ".php", ".rb", ".swift", ".dart", ".scala", ".lua",
+    ".c", ".cpp", ".cc", ".h", ".hpp", ".vue", ".svelte",
+    ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".xml", ".html", ".css", ".scss", ".sass", ".less",
+    ".sql", ".graphql", ".gql", ".proto", ".prisma", ".sh", ".ps1", ".dockerfile",
 }
-SPECIAL_TEXT_NAMES = {"Dockerfile", "Makefile", "README", "LICENSE"}
+SPECIAL_TEXT_NAMES = {"Dockerfile", "Makefile", "README", "LICENSE", ".gitignore", ".env.example", "Caddyfile"}
 
 
 @dataclass

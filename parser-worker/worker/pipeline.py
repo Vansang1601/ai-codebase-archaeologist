@@ -11,7 +11,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .git_ops import clone_repository, read_history
+from .git_ops import clone_repository, fetch_and_checkout_branch, list_remote_branches, read_history
 from .scanner import scan_repository
 from .parser import parse_file
 from .dependencies import build_dependencies
@@ -160,10 +160,51 @@ def run_job(db: Session, job: AnalysisJob):
 
         update_job(db, job, "scanning", 20)
         scanned, skipped = scan_repository(workdir)
+        if not scanned and not job.requested_ref:
+            try:
+                candidates = [b for b in list_remote_branches(repo.canonical_url) if b != branch]
+                for candidate in candidates[:5]:
+                    sha_cand, branch_cand = fetch_and_checkout_branch(workdir, candidate)
+                    cand_scanned, cand_skipped = scan_repository(workdir)
+                    if cand_scanned:
+                        # Clean up the empty-branch building snapshot before switching to the populated branch
+                        job.snapshot_id = None
+                        db.flush()
+                        db.delete(snapshot)
+                        db.flush()
+                        sha, branch = sha_cand, branch_cand
+                        scanned, skipped = cand_scanned, cand_skipped
+
+                        existing_ready = db.scalar(
+                            select(Snapshot).where(Snapshot.repository_id == repo.id, Snapshot.commit_sha == sha)
+                        )
+                        if existing_ready and existing_ready.status == "ready":
+                            job.snapshot_id = existing_ready.id
+                            job.status = "completed"
+                            job.phase = "snapshot_reused"
+                            job.progress = 100
+                            repo.status = "ready"
+                            db.commit()
+                            return
+                        if existing_ready:
+                            db.delete(existing_ready)
+                            db.flush()
+
+                        snapshot = Snapshot(repository_id=repo.id, commit_sha=sha, branch=branch, status="building")
+                        db.add(snapshot)
+                        db.flush()
+                        job.snapshot_id = snapshot.id
+                        db.commit()
+                        break
+            except Exception:
+                pass
+
         job.skipped_files_json = json.dumps(skipped)
         db.commit()
         if not scanned:
-            raise RuntimeError("No supported text source files were found within configured limits")
+            raise RuntimeError(
+                f"No supported text source files were found within configured limits (branch: {branch or 'HEAD'})"
+            )
 
         file_rows: dict[str, CodeFile] = {}
         parsed_by_path = {}
